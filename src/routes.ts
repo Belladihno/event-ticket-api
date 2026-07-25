@@ -1,4 +1,6 @@
 import { type Application } from 'express';
+import authRouter from './modules/auth/auth.router';
 
-export function setupRoutes(_app: Application): void {
+export function setupRoutes(app: Application): void {
+  app.use('/api/auth', authRouter);
 }

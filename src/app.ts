@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { setupRoutes } from './routes';
+import { errorHandler } from './common/middlewares/error.middleware';
 
 const app = express();
 
@@ -27,5 +28,6 @@ app.get('/health', (_req, res) => {
 });
 
 setupRoutes(app);
+app.use(errorHandler);
 
 export default app;
