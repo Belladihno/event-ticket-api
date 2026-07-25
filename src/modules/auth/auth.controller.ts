@@ -30,4 +30,13 @@ export class AuthController {
       next(err);
     }
   }
+
+  async verifyEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.verifyEmail(req.body.token);
+      res.json({ status: 'success', data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

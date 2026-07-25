@@ -22,3 +22,9 @@ export const refreshSchema = z.object({
     refreshToken: z.string(),
   }),
 });
+
+export const verifyEmailSchema = z.object({
+  body: z.object({
+    token: z.string(),
+  }),
+});

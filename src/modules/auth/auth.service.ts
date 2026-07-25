@@ -1,9 +1,11 @@
+import jwt from 'jsonwebtoken';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { AppDataSource } from '../../config/database.config';
+import { config } from '../../config/app.config';
 import { hashPassword, comparePassword } from '../../common/utils/hash.util';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../common/utils/token.util';
-import { ConflictError, AuthError } from '../../common/errors/AppError';
+import { ConflictError, AuthError, NotFoundError } from '../../common/errors/AppError';
 
 export class AuthService {
   private userRepo: Repository<User>;
@@ -26,7 +28,17 @@ export class AuthService {
       role: (data.role ?? 'customer') as User['role'],
     });
     await this.userRepo.save(user);
-    return { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role };
+
+    const verificationToken = jwt.sign({ email: user.email }, config.jwt.accessSecret, { expiresIn: '24h' });
+
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      verificationToken,
+    };
   }
 
   async login(email: string, password: string) {
@@ -37,6 +49,9 @@ export class AuthService {
     const valid = await comparePassword(password, user.password);
     if (!valid) {
       throw new AuthError('Invalid email or password');
+    }
+    if (!user.isVerified) {
+      throw new AuthError('Please verify your email before logging in');
     }
     const payload = { userId: user.id, role: user.role };
     const accessToken = signAccessToken(payload);
@@ -56,5 +71,25 @@ export class AuthService {
     } catch {
       throw new AuthError('Invalid or expired refresh token');
     }
+  }
+
+  async verifyEmail(token: string) {
+    let email: string;
+    try {
+      const payload = jwt.verify(token, config.jwt.accessSecret) as { email: string };
+      email = payload.email;
+    } catch {
+      throw new AuthError('Invalid or expired verification token');
+    }
+    const user = await this.userRepo.findOne({ where: { email } });
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+    if (user.isVerified) {
+      return { message: 'Email already verified' };
+    }
+    user.isVerified = true;
+    await this.userRepo.save(user);
+    return { message: 'Email verified successfully' };
   }
 }
