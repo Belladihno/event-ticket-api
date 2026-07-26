@@ -28,10 +28,12 @@ export const config = {
     encryptionKey: process.env.FLW_ENCRYPTION_KEY ?? '',
     webhookHash: process.env.FLW_WEBHOOK_HASH ?? '',
   },
-  gcs: {
-    bucketName: process.env.GCS_BUCKET_NAME ?? '',
-    projectId: process.env.GCS_PROJECT_ID ?? '',
-    credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS ?? './gcs-key.json',
+  r2: {
+    accountId: process.env.R2_ACCOUNT_ID ?? '',
+    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+    bucketName: process.env.R2_BUCKET_NAME ?? '',
+    publicUrl: process.env.R2_PUBLIC_URL ?? '',
   },
   email: {
     smtpHost: process.env.SMTP_HOST ?? 'smtp.resend.com',

@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { generateId } from '../../common/utils/uuid.util';
 import { BaseEntity } from '../../common/base.entity';
 import { User } from '../users/user.entity';
@@ -10,6 +10,8 @@ export enum EventStatus {
   CANCELLED = 'cancelled',
 }
 
+@Index(['status', 'startTime'])
+@Index(['organizer', 'createdAt'])
 @Entity('events')
 export class Event extends BaseEntity {
   @PrimaryColumn({ type: 'uuid' })
