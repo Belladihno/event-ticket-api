@@ -9,6 +9,8 @@ export const createVenueSchema = z.object({
   }),
 });
 
+export type CreateVenueDto = z.infer<typeof createVenueSchema>['body'];
+
 export const updateVenueSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(200).optional(),
@@ -17,3 +19,5 @@ export const updateVenueSchema = z.object({
     capacity: z.number().int().positive().optional(),
   }),
 });
+
+export type UpdateVenueDto = z.infer<typeof updateVenueSchema>['body'];

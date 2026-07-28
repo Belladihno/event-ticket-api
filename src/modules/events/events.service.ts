@@ -1,6 +1,7 @@
 import { Repository } from 'typeorm';
 import { Event, EventStatus } from './event.entity';
 import { User } from '../users/user.entity';
+import { toUserResponse } from '../users/user.mapper';
 import { Venue } from '../venues/venue.entity';
 import { AppDataSource } from '../../config/database.config';
 import { redis } from '../../config/redis.config';
@@ -8,6 +9,7 @@ import { storageProvider } from '../../providers/storage/storage.provider';
 import { config } from '../../config/app.config';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
 import { generateId } from '../../common/utils/uuid.util';
+import type { CreateEventDto } from './events.schema';
 
 const EVENTS_CACHE_KEY = 'events:published';
 const EVENTS_CACHE_TTL = 600;
@@ -23,13 +25,7 @@ export class EventsService {
 
   async create(
     organizerId: string,
-    data: {
-      venueId: string;
-      title: string;
-      description: string;
-      startTime: string;
-      endTime: string;
-    },
+    data: CreateEventDto,
   ) {
     const venue = await this.venueRepo.findOne({ where: { id: data.venueId } });
     if (!venue) {
@@ -69,6 +65,7 @@ export class EventsService {
     event.bannerImageUrl = publicUrl;
     await this.eventRepo.save(event);
     await redis.del(EVENTS_CACHE_KEY);
+    event.organizer = toUserResponse(event.organizer) as User;
     return event;
   }
 
@@ -89,6 +86,7 @@ export class EventsService {
     event.status = EventStatus.PUBLISHED;
     await this.eventRepo.save(event);
     await redis.del(EVENTS_CACHE_KEY);
+    event.organizer = toUserResponse(event.organizer) as User;
     return event;
   }
 
@@ -106,6 +104,7 @@ export class EventsService {
     event.status = EventStatus.CANCELLED;
     await this.eventRepo.save(event);
     await redis.del(EVENTS_CACHE_KEY);
+    event.organizer = toUserResponse(event.organizer) as User;
     return event;
   }
 
@@ -135,6 +134,7 @@ export class EventsService {
     if (!event) {
       throw new NotFoundError('Event not found');
     }
+    event.organizer = toUserResponse(event.organizer) as User;
     return event;
   }
 }

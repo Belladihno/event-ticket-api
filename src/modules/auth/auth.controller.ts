@@ -15,7 +15,7 @@ export class AuthController {
 
   async login(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await authService.login(req.body.email, req.body.password);
+      const result = await authService.login(req.body);
       res.json({ status: 'success', data: result });
     } catch (err) {
       next(err);
@@ -24,7 +24,7 @@ export class AuthController {
 
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await authService.refresh(req.body.refreshToken);
+      const result = await authService.refresh(req.body);
       res.json({ status: 'success', data: result });
     } catch (err) {
       next(err);
@@ -33,7 +33,7 @@ export class AuthController {
 
   async verifyEmail(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await authService.verifyEmail(req.body.token);
+      const result = await authService.verifyEmail(req.body);
       res.json({ status: 'success', data: result });
     } catch (err) {
       next(err);

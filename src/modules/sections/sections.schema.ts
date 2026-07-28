@@ -8,6 +8,8 @@ export const createSectionSchema = z.object({
   }),
 });
 
+export type CreateSectionDto = z.infer<typeof createSectionSchema>['body'];
+
 export const updateSectionSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(200).optional(),
@@ -15,3 +17,5 @@ export const updateSectionSchema = z.object({
     totalSeats: z.number().int().positive().optional(),
   }),
 });
+
+export type UpdateSectionDto = z.infer<typeof updateSectionSchema>['body'];

@@ -10,6 +10,8 @@ export const registerSchema = z.object({
   }),
 });
 
+export type RegisterDto = z.infer<typeof registerSchema>['body'];
+
 export const loginSchema = z.object({
   body: z.object({
     email: z.email(),
@@ -17,14 +19,20 @@ export const loginSchema = z.object({
   }),
 });
 
+export type LoginDto = z.infer<typeof loginSchema>['body'];
+
 export const refreshSchema = z.object({
   body: z.object({
     refreshToken: z.string(),
   }),
 });
 
+export type RefreshDto = z.infer<typeof refreshSchema>['body'];
+
 export const verifyEmailSchema = z.object({
   body: z.object({
     token: z.string(),
   }),
 });
+
+export type VerifyEmailDto = z.infer<typeof verifyEmailSchema>['body'];

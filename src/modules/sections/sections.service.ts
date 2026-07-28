@@ -4,6 +4,7 @@ import { Event } from '../events/event.entity';
 import { AppDataSource } from '../../config/database.config';
 import { redis } from '../../config/redis.config';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
+import type { CreateSectionDto, UpdateSectionDto } from './sections.schema';
 
 export class SectionsService {
   private sectionRepo: Repository<Section>;
@@ -13,8 +14,8 @@ export class SectionsService {
     this.sectionRepo = AppDataSource.getRepository(Section);
     this.eventRepo = AppDataSource.getRepository(Event);
   }
-
-  async create(eventId: string, organizerId: string, data: { name: string; price: number; totalSeats: number }) {
+  
+  async create(eventId: string, organizerId: string, data: CreateSectionDto) {
     const event = await this.eventRepo.findOne({ where: { id: eventId }, relations: ['organizer'] });
     if (!event) {
       throw new NotFoundError('Event not found');
@@ -50,7 +51,7 @@ export class SectionsService {
     return section;
   }
 
-  async update(id: string, organizerId: string, data: { name?: string; price?: number; totalSeats?: number }) {
+  async update(id: string, organizerId: string, data: UpdateSectionDto) {
     const section = await this.sectionRepo.findOne({ where: { id }, relations: ['event', 'event.organizer'] });
     if (!section) {
       throw new NotFoundError('Section not found');

@@ -1,8 +1,10 @@
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
+import { toUserResponse } from './user.mapper';
 import { Event } from '../events/event.entity';
 import { AppDataSource } from '../../config/database.config';
 import { NotFoundError } from '../../common/errors/AppError';
+import type { UpdateProfileDto } from './users.schema';
 
 export class UsersService {
   private userRepo: Repository<User>;
@@ -18,10 +20,10 @@ export class UsersService {
     if (!user) {
       throw new NotFoundError('User not found');
     }
-    return { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role, isVerified: user.isVerified };
+    return toUserResponse(user);
   }
 
-  async updateProfile(userId: string, data: { firstName?: string; lastName?: string }) {
+  async updateProfile(userId: string, data: UpdateProfileDto) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundError('User not found');
@@ -29,7 +31,7 @@ export class UsersService {
     if (data.firstName !== undefined) user.firstName = data.firstName;
     if (data.lastName !== undefined) user.lastName = data.lastName;
     await this.userRepo.save(user);
-    return { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role, isVerified: user.isVerified };
+    return toUserResponse(user);
   }
 
   async getMyEvents(organizerId: string) {

@@ -6,7 +6,7 @@ const seatsService = new SeatsService();
 export class SeatsController {
   async bulkCreate(req: Request, res: Response, next: NextFunction) {
     try {
-      const seats = await seatsService.bulkCreate(req.params.sectionId as string, req.user!.userId, req.body.seatNumbers);
+      const seats = await seatsService.bulkCreate(req.params.sectionId as string, req.user!.userId, req.body);
       res.status(201).json({ status: 'success', data: seats });
     } catch (err) {
       next(err);

@@ -9,3 +9,5 @@ export const createEventSchema = z.object({
     endTime: z.string().datetime(),
   }),
 });
+
+export type CreateEventDto = z.infer<typeof createEventSchema>['body'];

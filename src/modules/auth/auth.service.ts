@@ -1,11 +1,13 @@
 import jwt from 'jsonwebtoken';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
+import { toUserResponse } from '../users/user.mapper';
 import { AppDataSource } from '../../config/database.config';
 import { config } from '../../config/app.config';
 import { hashPassword, comparePassword } from '../../common/utils/hash.util';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../common/utils/token.util';
 import { ConflictError, AuthError, NotFoundError } from '../../common/errors/AppError';
+import type { RegisterDto, LoginDto, RefreshDto, VerifyEmailDto } from './auth.schema';
 
 export class AuthService {
   private userRepo: Repository<User>;
@@ -14,7 +16,7 @@ export class AuthService {
     this.userRepo = AppDataSource.getRepository(User);
   }
 
-  async register(data: { firstName: string; lastName: string; email: string; password: string; role?: string }) {
+  async register(data: RegisterDto) {
     const existing = await this.userRepo.findOne({ where: { email: data.email } });
     if (existing) {
       throw new ConflictError('Email already registered');
@@ -32,21 +34,17 @@ export class AuthService {
     const verificationToken = jwt.sign({ email: user.email }, config.jwt.accessSecret, { expiresIn: '24h' });
 
     return {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role,
+      ...toUserResponse(user),
       verificationToken,
     };
   }
 
-  async login(email: string, password: string) {
-    const user = await this.userRepo.findOne({ where: { email } });
+  async login(data: LoginDto) {
+    const user = await this.userRepo.findOne({ where: { email: data.email } });
     if (!user) {
       throw new AuthError('Invalid email or password');
     }
-    const valid = await comparePassword(password, user.password);
+    const valid = await comparePassword(data.password, user.password);
     if (!valid) {
       throw new AuthError('Invalid email or password');
     }
@@ -59,13 +57,13 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role },
+      user: toUserResponse(user),
     };
   }
 
-  async refresh(refreshToken: string) {
+  async refresh(data: RefreshDto) {
     try {
-      const payload = verifyRefreshToken(refreshToken);
+      const payload = verifyRefreshToken(data.refreshToken);
       const accessToken = signAccessToken({ userId: payload.userId, role: payload.role });
       return { accessToken };
     } catch {
@@ -73,10 +71,10 @@ export class AuthService {
     }
   }
 
-  async verifyEmail(token: string) {
+  async verifyEmail(data: VerifyEmailDto) {
     let email: string;
     try {
-      const payload = jwt.verify(token, config.jwt.accessSecret) as { email: string };
+      const payload = jwt.verify(data.token, config.jwt.accessSecret) as { email: string };
       email = payload.email;
     } catch {
       throw new AuthError('Invalid or expired verification token');

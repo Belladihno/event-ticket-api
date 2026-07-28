@@ -3,6 +3,7 @@ import { Seat, SeatStatus } from './seat.entity';
 import { Section } from '../sections/section.entity';
 import { AppDataSource } from '../../config/database.config';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
+import type { CreateSeatsDto, UpdateSeatDto } from './seats.schema';
 
 export class SeatsService {
   private seatRepo: Repository<Seat>;
@@ -13,7 +14,8 @@ export class SeatsService {
     this.sectionRepo = AppDataSource.getRepository(Section);
   }
 
-  async bulkCreate(sectionId: string, organizerId: string, seatNumbers: string[]) {
+  async bulkCreate(sectionId: string, organizerId: string, data: CreateSeatsDto) {
+    const seatNumbers = data.seatNumbers;
     const section = await this.sectionRepo.findOne({ where: { id: sectionId }, relations: ['event', 'event.organizer'] });
     if (!section) {
       throw new NotFoundError('Section not found');
@@ -51,7 +53,7 @@ export class SeatsService {
     return seat;
   }
 
-  async update(id: string, organizerId: string, data: { seatNumber?: string }) {
+  async update(id: string, organizerId: string, data: UpdateSeatDto) {
     const seat = await this.seatRepo.findOne({ where: { id }, relations: ['section', 'section.event', 'section.event.organizer'] });
     if (!seat) {
       throw new NotFoundError('Seat not found');

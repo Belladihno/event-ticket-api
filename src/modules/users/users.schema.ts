@@ -6,3 +6,5 @@ export const updateProfileSchema = z.object({
     lastName: z.string().min(1).max(100).optional(),
   }),
 });
+
+export type UpdateProfileDto = z.infer<typeof updateProfileSchema>['body'];

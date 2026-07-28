@@ -3,6 +3,7 @@ import { Venue } from './venue.entity';
 import { AppDataSource } from '../../config/database.config';
 import { redis } from '../../config/redis.config';
 import { NotFoundError } from '../../common/errors/AppError';
+import type { CreateVenueDto, UpdateVenueDto } from './venues.schema';
 
 const VENUES_CACHE_KEY = 'venues:list';
 const VENUES_CACHE_TTL = 600;
@@ -14,7 +15,7 @@ export class VenuesService {
     this.venueRepo = AppDataSource.getRepository(Venue);
   }
 
-  async create(data: { name: string; address: string; city: string; capacity: number }) {
+  async create(data: CreateVenueDto) {
     const venue = this.venueRepo.create(data);
     await this.venueRepo.save(venue);
     await redis.del(VENUES_CACHE_KEY);
@@ -31,7 +32,7 @@ export class VenuesService {
     return venues;
   }
 
-  async update(id: string, data: { name?: string; address?: string; city?: string; capacity?: number }) {
+  async update(id: string, data: UpdateVenueDto) {
     const venue = await this.venueRepo.findOne({ where: { id } });
     if (!venue) {
       throw new NotFoundError('Venue not found');
