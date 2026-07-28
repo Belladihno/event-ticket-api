@@ -28,12 +28,11 @@ export const config = {
     encryptionKey: process.env.FLW_ENCRYPTION_KEY ?? '',
     webhookHash: process.env.FLW_WEBHOOK_HASH ?? '',
   },
-  r2: {
-    accountId: process.env.R2_ACCOUNT_ID ?? '',
-    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
-    bucketName: process.env.R2_BUCKET_NAME ?? '',
-    publicUrl: process.env.R2_PUBLIC_URL ?? '',
+  supabase: {
+    url: process.env.SUPABASE_URL ?? '',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    eventBannersBucket: process.env.SUPABASE_EVENT_BANNERS_BUCKET ?? 'event-banners',
+    ticketsBucket: process.env.SUPABASE_TICKETS_BUCKET ?? 'tickets',
   },
   email: {
     smtpHost: process.env.SMTP_HOST ?? 'smtp.resend.com',

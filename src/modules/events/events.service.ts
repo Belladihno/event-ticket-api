@@ -4,8 +4,8 @@ import { User } from '../users/user.entity';
 import { Venue } from '../venues/venue.entity';
 import { AppDataSource } from '../../config/database.config';
 import { redis } from '../../config/redis.config';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { s3, r2BucketName, getPublicUrl } from '../../config/storage.config';
+import { storageProvider } from '../../providers/storage/storage.provider';
+import { config } from '../../config/app.config';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
 import { generateId } from '../../common/utils/uuid.util';
 
@@ -64,16 +64,8 @@ export class EventsService {
     if (event.organizer.id !== organizerId) {
       throw new ForbiddenError('Not your event');
     }
-    const filename = `banners/${eventId}-${generateId()}-${file.originalname}`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: r2BucketName,
-        Key: filename,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-      }),
-    );
-    const publicUrl = getPublicUrl(filename);
+    const path = `event-banners/${eventId}/${generateId()}-${file.originalname}`;
+    const publicUrl = await storageProvider.upload(config.supabase.eventBannersBucket, file.buffer, path, file.mimetype);
     event.bannerImageUrl = publicUrl;
     await this.eventRepo.save(event);
     await redis.del(EVENTS_CACHE_KEY);

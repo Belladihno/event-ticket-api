@@ -37,8 +37,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1095.0",
-    "@aws-sdk/s3-request-presigner": "^3.1095.0",
+    "@supabase/supabase-js": "^2.110.8",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.81.1",
     "cors": "^2.8.6",

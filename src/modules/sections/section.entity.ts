@@ -1,8 +1,9 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { generateId } from '../../common/utils/uuid.util';
 import { BaseEntity } from '../../common/base.entity';
 import { Event } from '../events/event.entity';
 
+@Index(['event', 'name'])
 @Entity('sections')
 export class Section extends BaseEntity {
   @PrimaryColumn({ type: 'uuid' })
