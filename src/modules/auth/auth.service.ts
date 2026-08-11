@@ -33,9 +33,15 @@ export class AuthService {
 
     const verificationToken = jwt.sign({ email: user.email }, config.jwt.accessSecret, { expiresIn: '24h' });
 
+    const payload = { userId: user.id, role: user.role };
+    const accessToken = signAccessToken(payload);
+    const refreshToken = signRefreshToken(payload);
+
     return {
-      ...toUserResponse(user),
+      accessToken,
+      refreshToken,
       verificationToken,
+      user: toUserResponse(user),
     };
   }
 
@@ -49,7 +55,7 @@ export class AuthService {
       throw new AuthError('Invalid email or password');
     }
     if (!user.isVerified) {
-      throw new AuthError('Please verify your email before logging in');
+      throw new AuthError('Email not verified. Please verify your email before logging in');
     }
     const payload = { userId: user.id, role: user.role };
     const accessToken = signAccessToken(payload);

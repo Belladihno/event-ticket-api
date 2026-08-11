@@ -7,11 +7,12 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { setupRoutes } from './routes';
 import { errorHandler } from './common/middlewares/error.middleware';
+import { config } from './config/app.config';
 
 const app = express();
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: config.corsOrigin }));
 app.use(helmet());
 app.use(morgan('dev'));
 

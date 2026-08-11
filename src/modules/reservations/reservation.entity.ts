@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, ManyToOne, OneToOne, JoinColumn, Index } from 'typeorm';
 import { generateId } from '../../common/utils/uuid.util';
 import { BaseEntity } from '../../common/base.entity';
 import { User } from '../users/user.entity';
@@ -10,6 +10,8 @@ export enum ReservationStatus {
   CONFIRMED = 'confirmed',
 }
 
+@Index(['user', 'createdAt'])
+@Index(['status', 'expiresAt'])
 @Entity('reservations')
 export class Reservation extends BaseEntity {
   @PrimaryColumn({ type: 'uuid' })

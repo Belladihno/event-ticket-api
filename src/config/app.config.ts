@@ -4,6 +4,7 @@ export const config = {
   port: parseInt(process.env.PORT ?? '3000', 10),
   nodeEnv: process.env.NODE_ENV ?? 'development',
   appName: process.env.APP_NAME ?? 'EventTicketingAPI',
+  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
   db: {
     host: process.env.DB_HOST ?? 'localhost',
     port: parseInt(process.env.DB_PORT ?? '3306', 10),
@@ -23,11 +24,10 @@ export const config = {
     port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
     password: process.env.REDIS_PASSWORD ?? '',
   },
-  flutterwave: {
-    publicKey: process.env.FLW_PUBLIC_KEY ?? '',
-    secretKey: process.env.FLW_SECRET_KEY ?? '',
-    encryptionKey: process.env.FLW_ENCRYPTION_KEY ?? '',
-    webhookHash: process.env.FLW_WEBHOOK_HASH ?? '',
+  bachs: {
+    apiKey: process.env.BACHS_API_KEY ?? '',
+    webhookSecret: process.env.BACHS_WEBHOOK_SECRET ?? '',
+    baseUrl: process.env.BACHS_BASE_URL ?? 'https://sandbox-api.bachs.io',
   },
   supabase: {
     url: process.env.SUPABASE_URL ?? '',
