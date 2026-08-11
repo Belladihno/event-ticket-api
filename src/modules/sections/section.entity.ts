@@ -21,4 +21,7 @@ export class Section extends BaseEntity {
 
   @Column({ name: 'total_seats', type: 'int' })
   totalSeats: number;
+
+  @Column({ name: 'bachs_product_id', type: 'varchar', nullable: true })
+  bachsProductId: string;
 }

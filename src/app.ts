@@ -8,8 +8,13 @@ import rateLimit from 'express-rate-limit';
 import { setupRoutes } from './routes';
 import { errorHandler } from './common/middlewares/error.middleware';
 import { config } from './config/app.config';
+import webhookRouter from './modules/payments/webhooks.controller';
 
 const app = express();
+
+// Webhook route MUST be registered BEFORE the global json() parser.
+// It uses express.raw() internally so the raw body is available for signature verification.
+app.use('/api/webhooks', webhookRouter);
 
 app.use(express.json());
 app.use(cors({ origin: config.corsOrigin }));

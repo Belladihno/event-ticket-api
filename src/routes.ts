@@ -6,6 +6,7 @@ import eventsRouter from './modules/events/events.router';
 import sectionsRouter from './modules/sections/sections.router';
 import seatsRouter from './modules/seats/seats.router';
 import reservationsRouter from './modules/reservations/reservations.router';
+import paymentsRouter from './modules/payments/payments.router';
 
 export function setupRoutes(app: Application): void {
   app.use('/api/auth', authRouter);
@@ -15,4 +16,5 @@ export function setupRoutes(app: Application): void {
   app.use('/api', sectionsRouter);
   app.use('/api', seatsRouter);
   app.use('/api/reservations', reservationsRouter);
+  app.use('/api/payments', paymentsRouter);
 }

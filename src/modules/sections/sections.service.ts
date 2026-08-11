@@ -3,6 +3,7 @@ import { Section } from './section.entity';
 import { Event } from '../events/event.entity';
 import { AppDataSource } from '../../config/database.config';
 import { redis } from '../../config/redis.config';
+import { bachs } from '../../providers/bachs.provider';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
 import type { CreateSectionDto, UpdateSectionDto } from './sections.schema';
 
@@ -25,6 +26,23 @@ export class SectionsService {
     }
     const section = this.sectionRepo.create({ event, name: data.name, price: data.price, totalSeats: data.totalSeats });
     await this.sectionRepo.save(section);
+
+    try {
+      const product = await bachs.products.create({
+        name: `${event.title} — ${data.name}`,
+        description: `Ticket: ${data.name} section`,
+        price: {
+          price_type: 'fixed',
+          amount: Number(data.price).toFixed(2),
+          currency: 'NGN',
+        },
+      });
+      section.bachsProductId = product.id;
+      await this.sectionRepo.save(section);
+    } catch (err) {
+      console.warn(`[Bachs] Failed to create product for section ${section.id}:`, err);
+    }
+
     await redis.del(`sections:${eventId}`);
     return section;
   }

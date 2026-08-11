@@ -5,6 +5,7 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   appName: process.env.APP_NAME ?? 'EventTicketingAPI',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
   db: {
     host: process.env.DB_HOST ?? 'localhost',
     port: parseInt(process.env.DB_PORT ?? '3306', 10),
