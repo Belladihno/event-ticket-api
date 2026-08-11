@@ -4,6 +4,9 @@ import { Seat, SeatStatus } from '../seats/seat.entity';
 import { Payment, PaymentStatus } from './payment.entity';
 import { ProcessedEvent } from './processed-event.entity';
 import { AppDataSource } from '../../config/database.config';
+import { TicketsService } from '../tickets/tickets.service';
+
+const ticketsService = new TicketsService();
 
 export interface BachsWebhookEvent {
   id: string;
@@ -85,6 +88,20 @@ async function onPaymentSucceeded(event: BachsWebhookEvent) {
   });
 
   console.log(`[webhook] Payment confirmed — seats ${seatIds.join(', ')} booked`);
+
+  if (metadata.userId && metadata.eventId) {
+    try {
+      await ticketsService.generateForReservations(
+        metadata.userId,
+        metadata.eventId,
+        reservationIds,
+        seatIds,
+      );
+      console.log(`[webhook] Tickets generated for reservation(s) ${reservationIds.join(', ')}`);
+    } catch (err) {
+      console.error('[webhook] Ticket generation failed:', err);
+    }
+  }
 }
 
 async function onPaymentFailed(event: BachsWebhookEvent) {
