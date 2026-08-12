@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import app from './app';
 import { AppDataSource } from './config/database.config';
 import { ReservationsService } from './modules/reservations/reservations.service';
+import { startNotificationWorker } from './modules/notifications/notification.worker';
 
 const PORT = process.env.PORT ?? 7000;
 
@@ -18,6 +19,9 @@ setInterval(async () => {
 async function start() {
   await AppDataSource.initialize();
   console.log('[Database] Connected');
+
+  startNotificationWorker();
+  console.log('[Notifications] Worker started');
 
   app.listen(PORT, () => {
     console.log(`[${process.env.APP_NAME ?? 'EventTicketingAPI'}] Server running on port ${PORT}`);

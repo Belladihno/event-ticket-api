@@ -22,17 +22,42 @@ export const loginSchema = z.object({
 export type LoginDto = z.infer<typeof loginSchema>['body'];
 
 export const refreshSchema = z.object({
-  body: z.object({
-    refreshToken: z.string(),
-  }),
+  body: z.object({}),
 });
 
 export type RefreshDto = z.infer<typeof refreshSchema>['body'];
 
 export const verifyEmailSchema = z.object({
   body: z.object({
-    token: z.string(),
+    email: z.email(),
+    code: z.string().regex(/^\d{6}$/, 'Verification code must be 6 digits'),
   }),
 });
 
 export type VerifyEmailDto = z.infer<typeof verifyEmailSchema>['body'];
+
+export const resendVerificationSchema = z.object({
+  body: z.object({
+    email: z.email(),
+  }),
+});
+
+export type ResendVerificationDto = z.infer<typeof resendVerificationSchema>['body'];
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.email(),
+  }),
+});
+
+export type ForgotPasswordDto = z.infer<typeof forgotPasswordSchema>['body'];
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    email: z.email(),
+    code: z.string().regex(/^\d{6}$/, 'Reset code must be 6 digits'),
+    newPassword: z.string().min(8).max(128),
+  }),
+});
+
+export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>['body'];

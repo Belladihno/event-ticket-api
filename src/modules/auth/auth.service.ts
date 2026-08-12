@@ -1,22 +1,46 @@
-import jwt from 'jsonwebtoken';
 import { Repository } from 'typeorm';
+import { REFRESH_TOKEN_TTL_SECONDS } from '../../common/constants/token.constants';
+import {
+  OTP_TTL_SECONDS,
+  OTP_MAX_ATTEMPTS,
+  OTP_SCOPE_VERIFY,
+  OTP_SCOPE_RESET,
+} from '../../common/constants/otp.constants';
 import { User } from '../users/user.entity';
 import { toUserResponse } from '../users/user.mapper';
 import { AppDataSource } from '../../config/database.config';
-import { config } from '../../config/app.config';
+import { sessionStore } from '../../providers/session/session.store';
+import { otpStore } from '../../providers/otp/otp.store';
+import { generateOtpCode } from '../../common/utils/code.util';
 import { hashPassword, comparePassword } from '../../common/utils/hash.util';
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../common/utils/token.util';
-import { ConflictError, AuthError, NotFoundError } from '../../common/errors/AppError';
-import type { RegisterDto, LoginDto, RefreshDto, VerifyEmailDto } from './auth.schema';
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from '../../common/utils/token.util';
+import { sendEmail } from '../notifications/mail.service';
+import { verificationEmailHtml, passwordResetHtml } from '../notifications/notification.email';
+import { ConflictError, AuthError, NotFoundError, ValidationError } from '../../common/errors/AppError';
+import type {
+  RegisterDto,
+  LoginDto,
+  VerifyEmailDto,
+  ResendVerificationDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './auth.schema';
 
 export class AuthService {
   private userRepo: Repository<User>;
-
+  
   constructor() {
     this.userRepo = AppDataSource.getRepository(User);
   }
 
   async register(data: RegisterDto) {
+    if (data.password.length < 8 || data.password.length > 128) {
+      throw new ValidationError('Password must be between 8 and 128 characters');
+    }
     const existing = await this.userRepo.findOne({ where: { email: data.email } });
     if (existing) {
       throw new ConflictError('Email already registered');
@@ -29,18 +53,21 @@ export class AuthService {
       password: hashedPassword,
       role: (data.role ?? 'customer') as User['role'],
     });
-    await this.userRepo.save(user);
+    try {
+      await this.userRepo.save(user);
+    } catch (err) {
+      if (err instanceof Error && (err as { code?: string }).code === 'ER_DUP_ENTRY') {
+        throw new ConflictError('Email already registered');
+      }
+      throw err;
+    }
 
-    const verificationToken = jwt.sign({ email: user.email }, config.jwt.accessSecret, { expiresIn: '24h' });
-
-    const payload = { userId: user.id, role: user.role };
-    const accessToken = signAccessToken(payload);
-    const refreshToken = signRefreshToken(payload);
+    const code = generateOtpCode();
+    await otpStore.save(OTP_SCOPE_VERIFY, user.email, code, OTP_TTL_SECONDS);
+    await sendEmail(user.email, 'Verify your email address', verificationEmailHtml({ code }));
 
     return {
-      accessToken,
-      refreshToken,
-      verificationToken,
+      message: 'Registration successful. Please verify your email to continue.',
       user: toUserResponse(user),
     };
   }
@@ -57,9 +84,12 @@ export class AuthService {
     if (!user.isVerified) {
       throw new AuthError('Email not verified. Please verify your email before logging in');
     }
+
     const payload = { userId: user.id, role: user.role };
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
+    await sessionStore.saveRefresh(user.id, refreshToken, REFRESH_TOKEN_TTL_SECONDS);
+
     return {
       accessToken,
       refreshToken,
@@ -67,9 +97,16 @@ export class AuthService {
     };
   }
 
-  async refresh(data: RefreshDto) {
+  async refresh(refreshToken?: string) {
     try {
-      const payload = verifyRefreshToken(data.refreshToken);
+      if (!refreshToken) {
+        throw new Error('Missing refresh token');
+      }
+      const payload = verifyRefreshToken(refreshToken);
+      const valid = await sessionStore.isRefreshValid(payload.userId, refreshToken);
+      if (!valid) {
+        throw new Error('Refresh token revoked');
+      }
       const accessToken = signAccessToken({ userId: payload.userId, role: payload.role });
       return { accessToken };
     } catch {
@@ -77,23 +114,65 @@ export class AuthService {
     }
   }
 
+  async logout(userId: string) {
+    await sessionStore.deleteRefresh(userId);
+    return { message: 'Logged out successfully' };
+  }
+
   async verifyEmail(data: VerifyEmailDto) {
-    let email: string;
-    try {
-      const payload = jwt.verify(data.token, config.jwt.accessSecret) as { email: string };
-      email = payload.email;
-    } catch {
-      throw new AuthError('Invalid or expired verification token');
+    const result = await otpStore.claim(OTP_SCOPE_VERIFY, data.email, data.code, OTP_MAX_ATTEMPTS);
+    if (result !== 'ok') {
+      throw new AuthError('Invalid or expired verification code');
     }
-    const user = await this.userRepo.findOne({ where: { email } });
+    const user = await this.userRepo.findOne({ where: { email: data.email } });
     if (!user) {
       throw new NotFoundError('User not found');
+    }
+    const updated = await this.userRepo.update(
+      { id: user.id, isVerified: false },
+      { isVerified: true },
+    );
+    if (updated.affected === 0) {
+      return { message: 'Email already verified' };
+    }
+    return { message: 'Email verified successfully' };
+  }
+
+  async resendVerification(data: ResendVerificationDto) {
+    const user = await this.userRepo.findOne({ where: { email: data.email } });
+    if (!user) {
+      return { message: 'If an account with that email exists, a verification code has been sent' };
     }
     if (user.isVerified) {
       return { message: 'Email already verified' };
     }
-    user.isVerified = true;
+    const code = generateOtpCode();
+    await otpStore.save(OTP_SCOPE_VERIFY, user.email, code, OTP_TTL_SECONDS);
+    await sendEmail(user.email, 'Verify your email address', verificationEmailHtml({ code }));
+    return { message: 'Verification code sent' };
+  }
+
+  async forgotPassword(data: ForgotPasswordDto) {
+    const user = await this.userRepo.findOne({ where: { email: data.email } });
+    if (user) {
+      const code = generateOtpCode();
+      await otpStore.save(OTP_SCOPE_RESET, user.email, code, OTP_TTL_SECONDS);
+      await sendEmail(user.email, 'Reset your password', passwordResetHtml({ code }));
+    }
+    return { message: 'If an account with that email exists, a password reset code has been sent' };
+  }
+
+  async resetPassword(data: ResetPasswordDto) {
+    const claim = await otpStore.claim(OTP_SCOPE_RESET, data.email, data.code, OTP_MAX_ATTEMPTS);
+    if (claim !== 'ok') {
+      throw new AuthError('Invalid or expired reset code');
+    }
+    const user = await this.userRepo.findOne({ where: { email: data.email } });
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+    user.password = await hashPassword(data.newPassword);
     await this.userRepo.save(user);
-    return { message: 'Email verified successfully' };
+    return { message: 'Password reset successfully' };
   }
 }

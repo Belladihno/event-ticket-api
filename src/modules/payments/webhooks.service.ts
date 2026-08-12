@@ -5,8 +5,10 @@ import { Payment, PaymentStatus } from './payment.entity';
 import { ProcessedEvent } from './processed-event.entity';
 import { AppDataSource } from '../../config/database.config';
 import { TicketsService } from '../tickets/tickets.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const ticketsService = new TicketsService();
+const notificationsService = new NotificationsService();
 
 export interface BachsWebhookEvent {
   id: string;
@@ -91,13 +93,14 @@ async function onPaymentSucceeded(event: BachsWebhookEvent) {
 
   if (metadata.userId && metadata.eventId) {
     try {
-      await ticketsService.generateForReservations(
+      const tickets = await ticketsService.generateForReservations(
         metadata.userId,
         metadata.eventId,
         reservationIds,
         seatIds,
       );
       console.log(`[webhook] Tickets generated for reservation(s) ${reservationIds.join(', ')}`);
+      await notificationsService.enqueueBookingConfirmation(metadata.userId, metadata.eventId, tickets);
     } catch (err) {
       console.error('[webhook] Ticket generation failed:', err);
     }
@@ -115,6 +118,15 @@ async function onPaymentFailed(event: BachsWebhookEvent) {
 
   await releaseHold(reservationIds, seatIds);
   console.log(`[webhook] Payment failed — seats ${seatIds.join(', ')} released`);
+
+  if (metadata.userId && metadata.eventId) {
+    try {
+      const amount = (event.data.amount as string | number | undefined)?.toString() ?? '0';
+      await notificationsService.enqueuePaymentFailed(metadata.userId, metadata.eventId, amount);
+    } catch (err) {
+      console.error('[webhook] Failed to enqueue payment failed notification:', err);
+    }
+  }
 }
 
 async function onCheckoutExpired(event: BachsWebhookEvent) {

@@ -9,6 +9,7 @@ import { storageProvider } from '../../providers/storage/storage.provider';
 import { config } from '../../config/app.config';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
 import { generateId } from '../../common/utils/uuid.util';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateEventDto } from './events.schema';
 
 const EVENTS_CACHE_KEY = 'events:published';
@@ -17,10 +18,12 @@ const EVENTS_CACHE_TTL = 600;
 export class EventsService {
   private eventRepo: Repository<Event>;
   private venueRepo: Repository<Venue>;
+  private notificationsService: NotificationsService;
 
   constructor() {
     this.eventRepo = AppDataSource.getRepository(Event);
     this.venueRepo = AppDataSource.getRepository(Venue);
+    this.notificationsService = new NotificationsService();
   }
 
   async create(
@@ -86,6 +89,11 @@ export class EventsService {
     event.status = EventStatus.PUBLISHED;
     await this.eventRepo.save(event);
     await redis.del(EVENTS_CACHE_KEY);
+    try {
+      await this.notificationsService.scheduleEventReminder(event.id, event.startTime);
+    } catch (err) {
+      console.error('[events] Failed to schedule event reminder:', err);
+    }
     event.organizer = toUserResponse(event.organizer) as User;
     return event;
   }
