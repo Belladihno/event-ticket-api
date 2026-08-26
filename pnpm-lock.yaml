@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  backend:
     dependencies:
       '@supabase/supabase-js':
         specifier: ^2.110.8
@@ -135,6 +137,8 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  frontend: {}
 
 packages:
 

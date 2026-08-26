@@ -4,6 +4,8 @@ package-lock.json
 .env
 .env.*
 !.env.example
+!backend/.env.example
+!frontend/.env.example
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -17,3 +19,5 @@ tmp/
 .idea/
 *.log
 *.md
+!README.md
+!**/README.md
