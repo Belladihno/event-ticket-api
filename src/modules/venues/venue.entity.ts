@@ -3,6 +3,7 @@ import { generateId } from '../../common/utils/uuid.util';
 import { BaseEntity } from '../../common/base.entity';
 
 @Index(['createdAt'])
+@Index(['city'])
 @Entity('venues')
 export class Venue extends BaseEntity {
   @PrimaryColumn({ type: 'uuid' })

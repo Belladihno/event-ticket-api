@@ -10,9 +10,9 @@ import { config } from '../../config/app.config';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
 import { generateId } from '../../common/utils/uuid.util';
 import { NotificationsService } from '../notifications/notifications.service';
-import type { CreateEventDto } from './events.schema';
+import type { CreateEventDto, ListEventsQuery } from './events.schema';
 
-const EVENTS_CACHE_KEY = 'events:published';
+const EVENTS_VERSION_KEY = 'events:cache:version';
 const EVENTS_CACHE_TTL = 600;
 
 export class EventsService {
@@ -44,7 +44,7 @@ export class EventsService {
       status: EventStatus.DRAFT,
     });
     await this.eventRepo.save(event);
-    await redis.del(EVENTS_CACHE_KEY);
+    await this.bumpEventsCache();
     return event;
   }
 
@@ -67,7 +67,7 @@ export class EventsService {
     const publicUrl = await storageProvider.upload(config.supabase.eventBannersBucket, file.buffer, path, file.mimetype);
     event.bannerImageUrl = publicUrl;
     await this.eventRepo.save(event);
-    await redis.del(EVENTS_CACHE_KEY);
+    await this.bumpEventsCache();
     event.organizer = toUserResponse(event.organizer) as User;
     return event;
   }
@@ -88,7 +88,7 @@ export class EventsService {
     }
     event.status = EventStatus.PUBLISHED;
     await this.eventRepo.save(event);
-    await redis.del(EVENTS_CACHE_KEY);
+    await this.bumpEventsCache();
     try {
       await this.notificationsService.scheduleEventReminder(event.id, event.startTime);
     } catch (err) {
@@ -111,27 +111,58 @@ export class EventsService {
     }
     event.status = EventStatus.CANCELLED;
     await this.eventRepo.save(event);
-    await redis.del(EVENTS_CACHE_KEY);
+    await this.bumpEventsCache();
     event.organizer = toUserResponse(event.organizer) as User;
     return event;
   }
 
-  async listPublished() {
-    const cached = await redis.get(EVENTS_CACHE_KEY);
+  async listPublished(query: ListEventsQuery) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const cacheKey = await this.buildListCacheKey(query);
+    const cached = await redis.get(cacheKey);
     if (cached) {
       return JSON.parse(cached);
     }
-    const events = await this.eventRepo.find({
-      where: { status: EventStatus.PUBLISHED },
-      relations: ['venue'],
-      order: { startTime: 'ASC' },
-    });
-    await redis.setex(
-      EVENTS_CACHE_KEY,
-      EVENTS_CACHE_TTL,
-      JSON.stringify(events),
-    );
-    return events;
+
+    const qb = this.eventRepo
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.venue', 'venue')
+      .where('event.status = :status', { status: EventStatus.PUBLISHED });
+
+    if (query.q) {
+      qb.andWhere("MATCH(event.`title`, event.`description`) AGAINST (:q)", { q: query.q });
+    }
+    if (query.venueId) {
+      qb.andWhere('event.venue_id = :venueId', { venueId: query.venueId });
+    }
+    if (query.city) {
+      qb.andWhere('venue.city = :city', { city: query.city });
+    }
+    if (query.startDate) {
+      qb.andWhere('event.startTime >= :startDate', { startDate: new Date(query.startDate) });
+    }
+    if (query.endDate) {
+      qb.andWhere('event.startTime <= :endDate', { endDate: new Date(query.endDate) });
+    }
+
+    const [items, total] = await qb
+      .orderBy('event.startTime', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const result = {
+      items,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
+    await redis.setex(cacheKey, EVENTS_CACHE_TTL, JSON.stringify(result));
+    return result;
   }
 
   async getById(id: string) {
@@ -144,5 +175,23 @@ export class EventsService {
     }
     event.organizer = toUserResponse(event.organizer) as User;
     return event;
+  }
+
+  private async bumpEventsCache(): Promise<void> {
+    await redis.incr(EVENTS_VERSION_KEY);
+  }
+
+  private async buildListCacheKey(query: ListEventsQuery): Promise<string> {
+    const version = await redis.get(EVENTS_VERSION_KEY);
+    const currentVersion = version ?? '1';
+    const filters = JSON.stringify({
+      q: query.q,
+      startDate: query.startDate,
+      endDate: query.endDate,
+      city: query.city,
+      venueId: query.venueId,
+    });
+    const hash = Buffer.from(filters).toString('base64url');
+    return `events:list:v${currentVersion}:${hash}:${query.page ?? 1}:${query.limit ?? 20}`;
   }
 }

@@ -91,6 +91,26 @@ export class TicketsService {
     });
   }
 
+  async myTicketEvents(userId: string) {
+    const tickets = await this.ticketRepo.find({
+      where: { user: { id: userId } },
+      relations: ['event', 'event.venue'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const grouped = new Map<string, { event: Event; ticketCount: number }>();
+    for (const ticket of tickets) {
+      if (!ticket.event) continue;
+      const entry = grouped.get(ticket.event.id);
+      if (entry) {
+        entry.ticketCount += 1;
+      } else {
+        grouped.set(ticket.event.id, { event: ticket.event, ticketCount: 1 });
+      }
+    }
+    return [...grouped.values()];
+  }
+
   async getTicket(userId: string, ticketId: string) {
     const ticket = await this.ticketRepo.findOne({
       where: { id: ticketId },

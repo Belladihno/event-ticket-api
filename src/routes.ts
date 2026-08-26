@@ -8,6 +8,7 @@ import seatsRouter from './modules/seats/seats.router';
 import reservationsRouter from './modules/reservations/reservations.router';
 import paymentsRouter from './modules/payments/payments.router';
 import ticketsRouter from './modules/tickets/tickets.router';
+import favoritesRouter from './modules/favorites/favorites.router';
 
 export function setupRoutes(app: Application): void {
   app.use('/api/auth', authRouter);
@@ -19,4 +20,5 @@ export function setupRoutes(app: Application): void {
   app.use('/api/reservations', reservationsRouter);
   app.use('/api/payments', paymentsRouter);
   app.use('/api/tickets', ticketsRouter);
+  app.use('/api/favorites', favoritesRouter);
 }

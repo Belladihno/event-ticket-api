@@ -40,9 +40,9 @@ export class EventsController {
     }
   }
 
-  async listPublished(_req: Request, res: Response, next: NextFunction) {
+  async listPublished(req: Request, res: Response, next: NextFunction) {
     try {
-      const events = await eventsService.listPublished();
+      const events = await eventsService.listPublished(req.query as never);
       res.json({ status: 'success', data: events });
     } catch (err) {
       next(err);

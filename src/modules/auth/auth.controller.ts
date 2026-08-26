@@ -45,7 +45,11 @@ export class AuthController {
     try {
       const token = req.cookies?.[REFRESH_COOKIE];
       if (!token) {
-        res.status(401).json({ status: 'error', message: 'No refresh token' });
+        res.status(401).json({
+          status: 'error',
+          message: 'No refresh token',
+          code: 'AUTH_REQUIRED',
+        });
         return;
       }
       const result = await authService.refresh(token);

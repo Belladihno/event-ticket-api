@@ -9,6 +9,7 @@ import {
 import { User } from '../users/user.entity';
 import { toUserResponse } from '../users/user.mapper';
 import { AppDataSource } from '../../config/database.config';
+import { redis } from '../../config/redis.config';
 import { sessionStore } from '../../providers/session/session.store';
 import { otpStore } from '../../providers/otp/otp.store';
 import { generateOtpCode } from '../../common/utils/code.util';
@@ -20,7 +21,8 @@ import {
 } from '../../common/utils/token.util';
 import { sendEmail } from '../notifications/mail.service';
 import { verificationEmailHtml, passwordResetHtml } from '../notifications/notification.email';
-import { ConflictError, AuthError, NotFoundError, ValidationError } from '../../common/errors/AppError';
+import { ConflictError, AuthError, NotFoundError, ValidationError, RateLimitError } from '../../common/errors/AppError';
+import { OTP_RESEND_COOLDOWN_SECONDS } from '../../common/constants/security.constants';
 import type {
   RegisterDto,
   LoginDto,
@@ -146,18 +148,32 @@ export class AuthService {
     if (user.isVerified) {
       return { message: 'Email already verified' };
     }
+    await this.assertResendCooldown(OTP_SCOPE_VERIFY, user.email);
     const code = generateOtpCode();
     await otpStore.save(OTP_SCOPE_VERIFY, user.email, code, OTP_TTL_SECONDS);
     await sendEmail(user.email, 'Verify your email address', verificationEmailHtml({ code }));
+    await redis.set(
+      this.cooldownKey(OTP_SCOPE_VERIFY, user.email),
+      '1',
+      'EX',
+      OTP_RESEND_COOLDOWN_SECONDS,
+    );
     return { message: 'Verification code sent' };
   }
 
   async forgotPassword(data: ForgotPasswordDto) {
     const user = await this.userRepo.findOne({ where: { email: data.email } });
     if (user) {
+      await this.assertResendCooldown(OTP_SCOPE_RESET, user.email);
       const code = generateOtpCode();
       await otpStore.save(OTP_SCOPE_RESET, user.email, code, OTP_TTL_SECONDS);
       await sendEmail(user.email, 'Reset your password', passwordResetHtml({ code }));
+      await redis.set(
+        this.cooldownKey(OTP_SCOPE_RESET, user.email),
+        '1',
+        'EX',
+        OTP_RESEND_COOLDOWN_SECONDS,
+      );
     }
     return { message: 'If an account with that email exists, a password reset code has been sent' };
   }
@@ -174,5 +190,16 @@ export class AuthService {
     user.password = await hashPassword(data.newPassword);
     await this.userRepo.save(user);
     return { message: 'Password reset successfully' };
+  }
+
+  private cooldownKey(scope: string, email: string): string {
+    return `auth:otp:cooldown:${scope}:${email.toLowerCase()}`;
+  }
+
+  private async assertResendCooldown(scope: string, email: string): Promise<void> {
+    const remaining = await redis.ttl(this.cooldownKey(scope, email));
+    if (remaining > 0) {
+      throw new RateLimitError('Please wait before requesting another code');
+    }
   }
 }

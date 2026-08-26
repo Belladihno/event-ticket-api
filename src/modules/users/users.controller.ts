@@ -24,7 +24,8 @@ export class UsersController {
 
   async getMyEvents(req: Request, res: Response, next: NextFunction) {
     try {
-      const events = await usersService.getMyEvents(req.user!.userId);
+      const { page, limit } = req.query as { page?: number; limit?: number };
+      const events = await usersService.getMyEvents(req.user!.userId, page, limit);
       res.json({ status: 'success', data: events });
     } catch (err) {
       next(err);

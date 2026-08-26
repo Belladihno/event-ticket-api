@@ -1,0 +1,4 @@
+export const OTP_RATE_LIMIT_WINDOW_SECONDS = 15 * 60;
+export const OTP_RATE_LIMIT_MAX_PER_IP = 10;
+export const OTP_RATE_LIMIT_MAX_PER_EMAIL = 5;
+export const OTP_RESEND_COOLDOWN_SECONDS = 60;

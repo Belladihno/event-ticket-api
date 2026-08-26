@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paginationQuery } from '../../common/schemas/list-query.schema';
 
 export const updateProfileSchema = z.object({
   body: z.object({
@@ -8,3 +9,11 @@ export const updateProfileSchema = z.object({
 });
 
 export type UpdateProfileDto = z.infer<typeof updateProfileSchema>['body'];
+
+export const listMyEventsQuerySchema = z.object({
+  query: z.object({
+    ...paginationQuery,
+  }),
+});
+
+export type ListMyEventsQuery = z.infer<typeof listMyEventsQuerySchema>['query'];

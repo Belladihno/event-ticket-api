@@ -12,6 +12,7 @@ export enum EventStatus {
 
 @Index(['status', 'startTime'])
 @Index(['organizer', 'createdAt'])
+@Index(['title', 'description'], { fulltext: true })
 @Entity('events')
 export class Event extends BaseEntity {
   @PrimaryColumn({ type: 'uuid' })

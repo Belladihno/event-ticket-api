@@ -34,11 +34,21 @@ export class UsersService {
     return toUserResponse(user);
   }
 
-  async getMyEvents(organizerId: string) {
-    return this.eventRepo.find({
+  async getMyEvents(organizerId: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [items, total] = await this.eventRepo.findAndCount({
       where: { organizer: { id: organizerId } },
       relations: ['venue'],
       order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
     });
+    return {
+      items,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
   }
 }

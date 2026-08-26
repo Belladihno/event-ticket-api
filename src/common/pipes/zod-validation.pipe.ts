@@ -19,9 +19,19 @@ export function validate(schema: ZodType) {
       });
       return;
     }
-    const data = result.data as { body?: Record<string, unknown> };
+    const data = result.data as {
+      body?: Record<string, unknown>;
+      query?: Record<string, unknown>;
+      params?: Record<string, unknown>;
+    };
     if (data.body) {
       req.body = data.body;
+    }
+    if (data.query) {
+      req.query = data.query as unknown as typeof req.query;
+    }
+    if (data.params) {
+      req.params = data.params as unknown as typeof req.params;
     }
     next();
   };

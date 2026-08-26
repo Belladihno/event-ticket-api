@@ -10,6 +10,7 @@ const router = Router();
 const controller = new TicketsController();
 
 router.get('/me', jwtGuard, controller.myTickets);
+router.get('/me/events', jwtGuard, controller.myTicketEvents);
 router.get('/:id', jwtGuard, controller.getTicket);
 router.post(
   '/validate',

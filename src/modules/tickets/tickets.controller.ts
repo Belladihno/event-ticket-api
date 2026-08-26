@@ -13,6 +13,15 @@ export class TicketsController {
     }
   }
 
+  async myTicketEvents(req: Request, res: Response, next: NextFunction) {
+    try {
+      const events = await ticketsService.myTicketEvents(req.user!.userId);
+      res.json({ status: 'success', data: events });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async getTicket(req: Request, res: Response, next: NextFunction) {
     try {
       const ticket = await ticketsService.getTicket(req.user!.userId, req.params.id as string);
