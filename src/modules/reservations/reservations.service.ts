@@ -4,6 +4,7 @@ import { Seat, SeatStatus } from '../seats/seat.entity';
 import { User } from '../users/user.entity';
 import { EventStatus } from '../events/event.entity';
 import { AppDataSource } from '../../config/database.config';
+import { invalidateSeatAvailability } from '../seats/seats.service';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../common/errors/AppError';
 import type { CreateReservationDto } from './reservations.schema';
 
@@ -22,7 +23,7 @@ export class ReservationsService {
     const seatIds = [...new Set(data.seatIds)];
     const expiresAt = new Date(Date.now() + RESERVATION_TTL_MINUTES * 60 * 1000);
 
-    return AppDataSource.transaction(async (manager) => {
+    const result = await AppDataSource.transaction(async (manager) => {
       const seats = await manager.find(Seat, {
         where: { id: In(seatIds) },
         lock: { mode: 'pessimistic_write' },
@@ -58,6 +59,8 @@ export class ReservationsService {
       await manager.save(reservations);
       return reservations;
     });
+    await invalidateSeatAvailability(result.map((r) => r.seat.section?.id ?? ''));
+    return result;
   }
 
   async myReservations(userId: string) {
@@ -83,7 +86,7 @@ export class ReservationsService {
     if (reservation.status !== ReservationStatus.PENDING) {
       throw new ConflictError('Only pending reservations can be cancelled');
     }
-    await AppDataSource.transaction(async (manager) => {
+    const result = await AppDataSource.transaction(async (manager) => {
       const locked = await manager.findOne(Reservation, {
         where: { id: reservationId },
         lock: { mode: 'pessimistic_write' },
@@ -93,23 +96,29 @@ export class ReservationsService {
       }
       locked.status = ReservationStatus.EXPIRED;
       await manager.save(locked);
-      const seat = await manager.findOne(Seat, { where: { id: reservation.seat.id } });
+      const seat = await manager.findOne(Seat, { where: { id: reservation.seat.id }, relations: ['section'] });
       if (seat && seat.status === SeatStatus.RESERVED) {
         seat.status = SeatStatus.AVAILABLE;
         await manager.save(seat);
+        return seat.section?.id;
       }
+      return null;
     });
+    if (result) {
+      await invalidateSeatAvailability([result]);
+    }
     return { message: 'Reservation cancelled' };
   }
 
   async expireOverdue() {
     const overdue = await this.reservationRepo.find({
       where: { status: ReservationStatus.PENDING, expiresAt: LessThan(new Date()) },
-      relations: ['seat'],
+      relations: ['seat', 'seat.section'],
     });
     if (overdue.length === 0) {
       return;
     }
+    const sectionIds = overdue.map((r) => r.seat?.section?.id ?? '');
     await AppDataSource.transaction(async (manager) => {
       for (const reservation of overdue) {
         reservation.status = ReservationStatus.EXPIRED;
@@ -120,5 +129,6 @@ export class ReservationsService {
         }
       }
     });
+    await invalidateSeatAvailability(sectionIds);
   }
 }

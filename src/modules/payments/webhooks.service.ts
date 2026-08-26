@@ -4,6 +4,7 @@ import { Seat, SeatStatus } from '../seats/seat.entity';
 import { Payment, PaymentStatus } from './payment.entity';
 import { ProcessedEvent } from './processed-event.entity';
 import { AppDataSource } from '../../config/database.config';
+import { invalidateSeatAvailabilityBySeatIds } from '../seats/seats.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -37,7 +38,7 @@ export async function handleBachsWebhook(event: BachsWebhookEvent): Promise<void
   await processedRepo.save(processedRepo.create({ eventId: event.id, type: event.type }));
 
   console.log(`[webhook] Processing event: ${event.type} (${event.id})`);
-
+  
   switch (event.type) {
     case 'collection.succeeded':
       await onPaymentSucceeded(event);
@@ -88,6 +89,7 @@ async function onPaymentSucceeded(event: BachsWebhookEvent) {
     payment.idempotencyKey = event.id;
     await manager.save(payment);
   });
+  await invalidateSeatAvailabilityBySeatIds(seatIds);
 
   console.log(`[webhook] Payment confirmed — seats ${seatIds.join(', ')} booked`);
 
@@ -158,4 +160,5 @@ async function releaseHold(reservationIds: string[], seatIds: string[]) {
       { status: SeatStatus.AVAILABLE },
     );
   });
+  await invalidateSeatAvailabilityBySeatIds(seatIds);
 }

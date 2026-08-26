@@ -22,6 +22,15 @@ export class SeatsController {
     }
   }
 
+  async availableCount(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await seatsService.availableCount(req.params.sectionId as string);
+      res.json({ status: 'success', data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const seat = await seatsService.getById(req.params.id as string);

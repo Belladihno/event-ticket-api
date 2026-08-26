@@ -1,9 +1,33 @@
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Seat, SeatStatus } from './seat.entity';
 import { Section } from '../sections/section.entity';
 import { AppDataSource } from '../../config/database.config';
+import { redis } from '../../config/redis.config';
 import { NotFoundError, ForbiddenError } from '../../common/errors/AppError';
 import type { CreateSeatsDto, UpdateSeatDto } from './seats.schema';
+
+// Availability counts are read heavily (seat maps) but change on every
+// reservation/expiry/booking, so keep the TTL short AND invalidate explicitly.
+const SEAT_AVAILABILITY_TTL_SECONDS = 60;
+
+export function seatAvailabilityKey(sectionId: string): string {
+  return `seats:available:${sectionId}`;
+}
+
+export async function invalidateSeatAvailability(sectionIds: string[]): Promise<void> {
+  const unique = [...new Set(sectionIds)].filter(Boolean);
+  if (unique.length === 0) return;
+  await redis.del(...unique.map((id) => seatAvailabilityKey(id)));
+}
+
+export async function invalidateSeatAvailabilityBySeatIds(seatIds: string[]): Promise<void> {
+  if (seatIds.length === 0) return;
+  const seats = await AppDataSource.getRepository(Seat).find({
+    where: { id: In(seatIds) },
+    relations: ['section'],
+  });
+  await invalidateSeatAvailability(seats.map((seat) => seat.section?.id ?? ''));
+}
 
 export class SeatsService {
   private seatRepo: Repository<Seat>;
@@ -31,6 +55,7 @@ export class SeatsService {
       this.seatRepo.create({ section, seatNumber, status: SeatStatus.AVAILABLE }),
     );
     await this.seatRepo.save(seats);
+    await invalidateSeatAvailability([sectionId]);
     return seats;
   }
 
@@ -43,6 +68,23 @@ export class SeatsService {
       where: { section: { id: sectionId } },
       order: { seatNumber: 'ASC' },
     });
+  }
+
+  async availableCount(sectionId: string) {
+    const section = await this.sectionRepo.findOne({ where: { id: sectionId } });
+    if (!section) {
+      throw new NotFoundError('Section not found');
+    }
+    const key = seatAvailabilityKey(sectionId);
+    const cached = await redis.get(key);
+    if (cached !== null) {
+      return { sectionId, available: parseInt(cached, 10) };
+    }
+    const available = await this.seatRepo.count({
+      where: { section: { id: sectionId }, status: SeatStatus.AVAILABLE },
+    });
+    await redis.setex(key, SEAT_AVAILABILITY_TTL_SECONDS, String(available));
+    return { sectionId, available };
   }
 
   async getById(id: string) {
@@ -63,6 +105,7 @@ export class SeatsService {
     }
     if (data.seatNumber !== undefined) seat.seatNumber = data.seatNumber;
     await this.seatRepo.save(seat);
+    await invalidateSeatAvailability([seat.section.id]);
     return seat;
   }
 
@@ -75,5 +118,6 @@ export class SeatsService {
       throw new ForbiddenError('Not your event');
     }
     await this.seatRepo.remove(seat);
+    await invalidateSeatAvailability([seat.section.id]);
   }
 }

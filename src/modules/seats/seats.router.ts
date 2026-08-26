@@ -9,6 +9,7 @@ import { UserRole } from '../users/user.entity';
 const router = Router();
 const controller = new SeatsController();
 
+router.get('/sections/:sectionId/seats/available-count', controller.availableCount);
 router.get('/sections/:sectionId/seats', controller.listBySection);
 router.get('/seats/:id', controller.getById);
 router.post('/sections/:sectionId/seats', jwtGuard, rolesGuard(UserRole.ORGANIZER), validate(createSeatsSchema), controller.bulkCreate);
