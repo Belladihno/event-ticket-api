@@ -7,6 +7,7 @@ export enum NotificationJobName {
   EVENT_REMINDER = 'event-reminder',
   PAYMENT_FAILED = 'payment-failed',
   SEND_EMAIL = 'send-email',
+  REFUND_ISSUED = 'refund-issued',
 }
 
 export interface BookingConfirmationJobData {
@@ -25,6 +26,10 @@ export interface SendEmailJobData {
   to: string;
   subject: string;
   html: string;
+}
+
+export interface RefundIssuedJobData {
+  notificationId: string;
 }
 
 const redisOptions = {

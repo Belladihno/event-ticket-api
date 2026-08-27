@@ -9,6 +9,7 @@ import {
   type BookingConfirmationJobData,
   type EventReminderJobData,
   type PaymentFailedJobData,
+  type RefundIssuedJobData,
 } from './notification.queue';
 
 interface BookingTicket {
@@ -81,6 +82,29 @@ export class NotificationsService {
     await notificationQueue.add(
       NotificationJobName.PAYMENT_FAILED,
       { notificationId: notification.id } satisfies PaymentFailedJobData,
+    );
+  }
+
+  async enqueueRefundIssued(userId: string, eventId: string, amount: string, reservationIds: string[]) {
+    const event = await this.eventRepo.findOne({ where: { id: eventId } });
+    if (!event) return;
+
+    const notification = this.notificationRepo.create({
+      user: { id: userId } as User,
+      type: NotificationType.REFUND_ISSUED,
+      status: NotificationStatus.QUEUED,
+      payload: {
+        eventId: event.id,
+        eventTitle: event.title,
+        amount,
+        reservationIds,
+      },
+    });
+    await this.notificationRepo.save(notification);
+
+    await notificationQueue.add(
+      NotificationJobName.REFUND_ISSUED,
+      { notificationId: notification.id } satisfies RefundIssuedJobData,
     );
   }
 }

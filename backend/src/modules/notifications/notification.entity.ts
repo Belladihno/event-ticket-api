@@ -7,6 +7,7 @@ export enum NotificationType {
   BOOKING_CONFIRMATION = 'booking_confirmation',
   EVENT_REMINDER = 'event_reminder',
   PAYMENT_FAILED = 'payment_failed',
+  REFUND_ISSUED = 'refund_issued',
 }
 
 export enum NotificationStatus {

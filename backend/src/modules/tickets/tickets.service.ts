@@ -158,6 +158,9 @@ export class TicketsService {
     if (ticket.event.organizer.id !== scannerId) {
       throw new ForbiddenError('Not your event');
     }
+    if (ticket.isRefunded) {
+      throw new AuthError('Ticket has been refunded');
+    }
     if (ticket.isUsed) {
       return {
         ticket,

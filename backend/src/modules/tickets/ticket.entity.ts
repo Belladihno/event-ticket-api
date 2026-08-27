@@ -38,4 +38,10 @@ export class Ticket extends BaseEntity {
 
   @Column({ name: 'used_at', type: 'datetime', nullable: true })
   usedAt: Date;
+
+  @Column({ name: 'is_refunded', type: 'boolean', default: false })
+  isRefunded: boolean;
+
+  @Column({ name: 'refunded_at', type: 'datetime', nullable: true })
+  refundedAt: Date;
 }

@@ -2,6 +2,7 @@ import { In, Repository } from 'typeorm';
 import { Reservation, ReservationStatus } from '../reservations/reservation.entity';
 import { Seat, SeatStatus } from '../seats/seat.entity';
 import { Payment, PaymentStatus } from './payment.entity';
+import { Ticket } from '../tickets/ticket.entity';
 import { ProcessedEvent } from './processed-event.entity';
 import { AppDataSource } from '../../config/database.config';
 import { invalidateSeatAvailabilityBySeatIds } from '../seats/seats.service';
@@ -48,6 +49,12 @@ export async function handleBachsWebhook(event: BachsWebhookEvent): Promise<void
       break;
     case 'checkout.expired':
       await onCheckoutExpired(event);
+      break;
+    case 'refund.created':
+      await onRefundCreated(event);
+      break;
+    case 'refund.paid':
+      await onRefundPaid(event);
       break;
     default:
       console.log(`[webhook] Unhandled event type: ${event.type}`);
@@ -142,6 +149,61 @@ async function onCheckoutExpired(event: BachsWebhookEvent) {
 
   await releaseHold(reservationIds, seatIds);
   console.log(`[webhook] Checkout expired — seats ${seatIds.join(', ')} released`);
+}
+
+async function onRefundCreated(event: BachsWebhookEvent) {
+  const metadata = (event.data.metadata ?? {}) as BachsMetadata;
+  console.log(`[webhook] Refund initiated for reservations ${metadata.reservationIds ?? 'unknown'} (event ${event.id})`);
+  // No state change yet — refund.paid is the source of truth
+}
+
+async function onRefundPaid(event: BachsWebhookEvent) {
+  const metadata = (event.data.metadata ?? {}) as BachsMetadata;
+  if (!metadata.reservationIds || !metadata.seatIds) {
+    console.error('[webhook] refund.paid missing metadata');
+    return;
+  }
+  const reservationIds = metadata.reservationIds.split(',');
+  const seatIds = metadata.seatIds.split(',');
+
+  await AppDataSource.transaction(async (manager) => {
+    await manager.update(
+      Reservation,
+      { id: In(reservationIds), status: ReservationStatus.CONFIRMED },
+      { status: ReservationStatus.REFUNDED },
+    );
+    await manager.update(
+      Seat,
+      { id: In(seatIds), status: SeatStatus.BOOKED },
+      { status: SeatStatus.AVAILABLE },
+    );
+    // Mark payment(s) refunded — match by user and successful status as fallback when reservation link is not set
+    if (metadata.userId) {
+      await manager.update(
+        Payment as any,
+        { user: { id: metadata.userId } as any, status: PaymentStatus.SUCCESSFUL } as any,
+        { status: PaymentStatus.REFUNDED } as any,
+      );
+    }
+    // Mark tickets refunded
+    await manager.update(
+      Ticket as any,
+      { reservation: In(reservationIds) } as any,
+      { isRefunded: true, refundedAt: new Date() } as any,
+    );
+  });
+  await invalidateSeatAvailabilityBySeatIds(seatIds);
+
+  console.log(`[webhook] Refund paid — seats ${seatIds.join(', ')} released, reservations refunded`);
+
+  if (metadata.userId && metadata.eventId) {
+    try {
+      const amount = (event.data.amount as string | number | undefined)?.toString() ?? '0';
+      await notificationsService.enqueueRefundIssued(metadata.userId, metadata.eventId, amount, reservationIds);
+    } catch (err) {
+      console.error('[webhook] Failed to enqueue refund notification:', err);
+    }
+  }
 }
 
 async function releaseHold(reservationIds: string[], seatIds: string[]) {

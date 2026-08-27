@@ -1,5 +1,9 @@
 jest.mock('../src/config/redis.config', () => ({
-  redis: { del: jest.fn().mockResolvedValue(1), get: jest.fn(), setex: jest.fn() },
+  redis: {
+    del: jest.fn().mockResolvedValue(1),
+    get: jest.fn(),
+    setex: jest.fn(),
+  },
 }));
 
 jest.mock('../src/modules/seats/seats.service', () => ({
@@ -16,6 +20,7 @@ jest.mock('../src/modules/notifications/notifications.service', () => ({
   NotificationsService: jest.fn().mockImplementation(() => ({
     enqueueBookingConfirmation: jest.fn().mockResolvedValue(undefined),
     enqueuePaymentFailed: jest.fn().mockResolvedValue(undefined),
+    enqueueRefundIssued: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 
@@ -37,7 +42,11 @@ const mockTransaction = jest.fn(async (cb: any) => {
 jest.mock('../src/config/database.config', () => ({
   AppDataSource: {
     getRepository: jest.fn((entity: any) => {
-      if (entity?.name === 'ProcessedEvent' || entity?.name === 'ProcessedEvent') return mockProcessedRepo;
+      if (
+        entity?.name === 'ProcessedEvent' ||
+        entity?.name === 'ProcessedEvent'
+      )
+        return mockProcessedRepo;
       return { findOne: jest.fn(), find: jest.fn() };
     }),
     transaction: mockTransaction,
@@ -70,10 +79,22 @@ describe('handleBachsWebhook — idempotency & state', () => {
       type: 'collection.succeeded',
       created_at: new Date().toISOString(),
       organization_id: 'org',
-      data: { amount: '50000.00', currency: 'NGN', metadata: { reservationIds: 'r1', seatIds: 's1', userId: 'u1', eventId: 'e1' }, id: 'pay_1' },
+      data: {
+        amount: '50000.00',
+        currency: 'NGN',
+        metadata: {
+          reservationIds: 'r1',
+          seatIds: 's1',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+        id: 'pay_1',
+      },
     } as any);
 
-    expect(mockProcessedRepo.findOne).toHaveBeenCalledWith({ where: { eventId: 'evt_new' } });
+    expect(mockProcessedRepo.findOne).toHaveBeenCalledWith({
+      where: { eventId: 'evt_new' },
+    });
     expect(mockProcessedRepo.save).toHaveBeenCalled();
     expect(AppDataSource.transaction).toHaveBeenCalled();
   });
@@ -89,7 +110,9 @@ describe('handleBachsWebhook — idempotency & state', () => {
       data: { metadata: {} },
     } as any);
 
-    expect(mockProcessedRepo.findOne).toHaveBeenCalledWith({ where: { eventId: 'evt_dup' } });
+    expect(mockProcessedRepo.findOne).toHaveBeenCalledWith({
+      where: { eventId: 'evt_dup' },
+    });
     expect(AppDataSource.transaction).not.toHaveBeenCalled();
   });
 
@@ -103,12 +126,20 @@ describe('handleBachsWebhook — idempotency & state', () => {
         id: 'pay_123',
         amount: '50000.00',
         currency: 'NGN',
-        metadata: { userId: 'u1', eventId: 'e1', reservationIds: 'r1,r2', seatIds: 's1,s2' },
+        metadata: {
+          userId: 'u1',
+          eventId: 'e1',
+          reservationIds: 'r1,r2',
+          seatIds: 's1,s2',
+        },
       },
     } as any);
 
     expect(AppDataSource.transaction).toHaveBeenCalledTimes(1);
-    expect(invalidateSeatAvailabilityBySeatIds).toHaveBeenCalledWith(['s1', 's2']);
+    expect(invalidateSeatAvailabilityBySeatIds).toHaveBeenCalledWith([
+      's1',
+      's2',
+    ]);
   });
 
   it('collection.failed releases pending->expired and reserved->available', async () => {
@@ -117,7 +148,15 @@ describe('handleBachsWebhook — idempotency & state', () => {
       type: 'collection.failed',
       created_at: new Date().toISOString(),
       organization_id: 'org',
-      data: { metadata: { reservationIds: 'r1', seatIds: 's1', userId: 'u1', eventId: 'e1' }, amount: '5000' },
+      data: {
+        metadata: {
+          reservationIds: 'r1',
+          seatIds: 's1',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+        amount: '5000',
+      },
     } as any);
 
     expect(AppDataSource.transaction).toHaveBeenCalled();
@@ -158,9 +197,19 @@ describe('handleBachsWebhook — idempotency & state', () => {
       type: 'collection.succeeded',
       created_at: new Date().toISOString(),
       organization_id: 'org',
-      data: { amount: '5000', metadata: { reservationIds: 'r1', seatIds: 's1', userId: 'u1', eventId: 'e1' }, id: 'pay1' },
+      data: {
+        amount: '5000',
+        metadata: {
+          reservationIds: 'r1',
+          seatIds: 's1',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+        id: 'pay1',
+      },
     } as any);
-    const firstTxCalls = (AppDataSource.transaction as unknown as jest.Mock).mock.calls.length;
+    const firstTxCalls = (AppDataSource.transaction as unknown as jest.Mock)
+      .mock.calls.length;
 
     // Second call with same id should be ignored
     mockProcessedRepo.findOne.mockResolvedValue({ eventId: 'evt_idem' } as any);
@@ -169,9 +218,119 @@ describe('handleBachsWebhook — idempotency & state', () => {
       type: 'collection.succeeded',
       created_at: new Date().toISOString(),
       organization_id: 'org',
-      data: { amount: '5000', metadata: { reservationIds: 'r1', seatIds: 's1', userId: 'u1', eventId: 'e1' }, id: 'pay1' },
+      data: {
+        amount: '5000',
+        metadata: {
+          reservationIds: 'r1',
+          seatIds: 's1',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+        id: 'pay1',
+      },
     } as any);
 
-    expect((AppDataSource.transaction as unknown as jest.Mock).mock.calls.length).toBe(firstTxCalls);
+    expect(
+      (AppDataSource.transaction as unknown as jest.Mock).mock.calls.length,
+    ).toBe(firstTxCalls);
+  });
+
+  it('refund.created does not change state but is idempotent', async () => {
+    await handleBachsWebhook({
+      id: 'evt_ref_created',
+      type: 'refund.created',
+      created_at: new Date().toISOString(),
+      organization_id: 'org',
+      data: {
+        amount: '5000',
+        metadata: {
+          reservationIds: 'r1',
+          seatIds: 's1',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+      },
+    } as any);
+
+    expect(mockProcessedRepo.save).toHaveBeenCalled();
+    // refund.created should NOT trigger a transaction (only logs)
+    expect(AppDataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('refund.paid refunds confirmed reservation, releases booked seat, marks ticket refunded and invalidates', async () => {
+    await handleBachsWebhook({
+      id: 'evt_ref_paid',
+      type: 'refund.paid',
+      created_at: new Date().toISOString(),
+      organization_id: 'org',
+      data: {
+        amount: '5000',
+        currency: 'NGN',
+        metadata: {
+          reservationIds: 'r1,r2',
+          seatIds: 's1,s2',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+      },
+    } as any);
+
+    expect(AppDataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(invalidateSeatAvailabilityBySeatIds).toHaveBeenCalledWith([
+      's1',
+      's2',
+    ]);
+  });
+
+  it('refund.paid with missing metadata does not throw', async () => {
+    await expect(
+      handleBachsWebhook({
+        id: 'evt_ref_nometa',
+        type: 'refund.paid',
+        created_at: new Date().toISOString(),
+        organization_id: 'org',
+        data: { metadata: {} },
+      } as any),
+    ).resolves.not.toThrow();
+    expect(AppDataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('refund.paid duplicate is ignored (idempotency)', async () => {
+    await handleBachsWebhook({
+      id: 'evt_ref_dup',
+      type: 'refund.paid',
+      created_at: new Date().toISOString(),
+      organization_id: 'org',
+      data: {
+        metadata: {
+          reservationIds: 'r1',
+          seatIds: 's1',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+      },
+    } as any);
+    const calls = (AppDataSource.transaction as unknown as jest.Mock).mock.calls
+      .length;
+    mockProcessedRepo.findOne.mockResolvedValue({
+      eventId: 'evt_ref_dup',
+    } as any);
+    await handleBachsWebhook({
+      id: 'evt_ref_dup',
+      type: 'refund.paid',
+      created_at: new Date().toISOString(),
+      organization_id: 'org',
+      data: {
+        metadata: {
+          reservationIds: 'r1',
+          seatIds: 's1',
+          userId: 'u1',
+          eventId: 'e1',
+        },
+      },
+    } as any);
+    expect(
+      (AppDataSource.transaction as unknown as jest.Mock).mock.calls.length,
+    ).toBe(calls);
   });
 });

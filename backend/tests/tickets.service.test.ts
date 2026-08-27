@@ -115,6 +115,18 @@ describe('TicketsService.validate', () => {
     const tampered = { ...good, ticketId: 't2' };
     await expect(service.validate(JSON.stringify(tampered), organizerId)).rejects.toBeInstanceOf(AuthError);
   });
+
+  it('throws AuthError for refunded ticket', async () => {
+    const payload = makePayload('t1');
+    mockTicketRepo.findOne.mockResolvedValue({
+      id: 't1',
+      isUsed: false,
+      isRefunded: true,
+      event: { id: eventId, organizer: { id: organizerId } },
+    } as any);
+    await expect(service.validate(payload, organizerId)).rejects.toBeInstanceOf(AuthError);
+    await expect(service.validate(payload, organizerId)).rejects.toThrow(/refunded/i);
+  });
 });
 
 describe('TicketsService.getTicket', () => {

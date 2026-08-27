@@ -12,11 +12,13 @@ import {
   type EventReminderJobData,
   type PaymentFailedJobData,
   type SendEmailJobData,
+  type RefundIssuedJobData,
 } from './notification.queue';
 import {
   bookingConfirmationHtml,
   eventReminderHtml,
   paymentFailedHtml,
+  refundIssuedHtml,
 } from './notification.email';
 
 interface BookingPayload {
@@ -75,6 +77,34 @@ async function handlePaymentFailed(data: PaymentFailedJobData): Promise<void> {
       to: notification.user.email,
       subject: `Payment failed for ${payload.eventTitle}`,
       html: paymentFailedHtml(payload),
+    });
+    notification.status = NotificationStatus.SENT;
+    notification.sentAt = new Date();
+    notification.errorMessage = undefined as unknown as string;
+    await notificationRepo.save(notification);
+  } catch (err) {
+    notification.status = NotificationStatus.FAILED;
+    notification.errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    await notificationRepo.save(notification);
+    throw err;
+  }
+}
+
+async function handleRefundIssued(data: RefundIssuedJobData): Promise<void> {
+  const notificationRepo: Repository<Notification> = AppDataSource.getRepository(Notification);
+  const notification = await notificationRepo.findOne({
+    where: { id: data.notificationId },
+    relations: ['user'],
+  });
+  if (!notification) return;
+
+  const payload = notification.payload as unknown as PaymentFailedPayload;
+
+  try {
+    await emailProvider.send({
+      to: notification.user.email,
+      subject: `Refund issued for ${payload.eventTitle}`,
+      html: refundIssuedHtml(payload),
     });
     notification.status = NotificationStatus.SENT;
     notification.sentAt = new Date();
@@ -165,6 +195,9 @@ export function startNotificationWorker(): Worker {
           break;
         case NotificationJobName.PAYMENT_FAILED:
           await handlePaymentFailed(job.data as PaymentFailedJobData);
+          break;
+        case NotificationJobName.REFUND_ISSUED:
+          await handleRefundIssued(job.data as RefundIssuedJobData);
           break;
         case NotificationJobName.SEND_EMAIL:
           await handleSendEmail(job.data as SendEmailJobData);

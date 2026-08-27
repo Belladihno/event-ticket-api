@@ -8,6 +8,7 @@ export enum ReservationStatus {
   PENDING = 'pending',
   EXPIRED = 'expired',
   CONFIRMED = 'confirmed',
+  REFUNDED = 'refunded',
 }
 
 @Index(['user', 'createdAt'])

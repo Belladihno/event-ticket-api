@@ -70,6 +70,16 @@ export function paymentFailedHtml(input: { eventTitle: string; amount: string })
   );
 }
 
+export function refundIssuedHtml(input: { eventTitle: string; amount: string }): string {
+  return wrapHtml(
+    `Refund issued for ${input.eventTitle}`,
+    `
+      <p>Your refund of <strong>${input.amount}</strong> for <strong>${input.eventTitle}</strong> has been processed.</p>
+      <p>The amount will appear in your account within 5-10 business days. Your tickets for this event have been cancelled and the seats released.</p>
+    `,
+  );
+}
+
 export function verificationEmailHtml(input: { code: string }): string {
   return wrapHtml(
     'Verify your email address',
