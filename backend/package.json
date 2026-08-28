@@ -12,7 +12,8 @@
     "migration:run": "node bin/typeorm-tsx.cjs -d src/config/database.config.ts migration:run",
     "migration:revert": "node bin/typeorm-tsx.cjs -d src/config/database.config.ts migration:revert",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:e2e": "jest --runInBand --forceExit --testPathPattern=e2e"
   },
   "keywords": [],
   "author": "",

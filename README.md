@@ -54,7 +54,8 @@ event-ticketing-api/
       providers/           # bachs, storage, email, session, otp
       modules/             # auth, users, venues, events, sections, seats, reservations, payments, tickets, favorites, notifications
       migrations/          # TypeORM
-    tests/                 # jest (89 tests)
+    tests/                 # jest (18 suites, 106 tests: 13 mocked + 5 e2e)
+      e2e/                 # supertest + real MySQL/Redis via WSL2 (auth, reservations 409 concurrency, payments webhooks, tickets + refunds)
     tsconfig.json          # IDE base (node+jest, src+tests, noEmit)
     tsconfig.build.json    # prod build (rootDir src, dist)
     tsconfig.test.json     # jest (extends tsconfig.json)
@@ -102,7 +103,8 @@ SMTP_HOST=smtp.resend.com SMTP_PORT=465 SMTP_USER= SMTP_PASS= MAIL_FROM=noreply@
 | `pnpm --filter backend migration:generate -- src/migrations/Name` | TypeORM |
 | `pnpm --filter backend migration:run` |  |
 | `pnpm --filter backend migration:revert` |  |
-| `pnpm --filter backend test` | `jest` (13 suites, 89 tests) |
+| `pnpm --filter backend test` | `jest` (18 suites, 106 tests, `--runInBand --forceExit` for e2e) |
+| `pnpm --filter backend test:e2e` | `jest --runInBand --forceExit --testPathPattern=e2e` (real WSL2 MySQL/Redis) |
 | `pnpm --filter backend test -- -t "auth"` | single suite |
 
 ---
@@ -180,11 +182,15 @@ IDs are UUIDv7 strings, prices `DECIMAL(10,2)` → string `"50000.00"`, dates IS
 ## Testing
 
 ```bash
-pnpm --filter backend test                 # 13 suites 89 tests
-pnpm --filter backend test -- auth.service # single file
+pnpm --filter backend test                 # 18 suites, 106 tests (13 mocked + 5 e2e)
+pnpm --filter backend test:e2e             # e2e only (WSL2 MySQL/Redis at localhost:3306/6379, --runInBand --forceExit)
+pnpm --filter backend test -- auth.service # single mocked suite
+pnpm --filter backend test -- e2e/auth --runInBand --forceExit # single e2e file
 ```
 
-Covers `hash/token/qr/code/uuid/rate-limit`, cache key helpers, expiry, auth register/login/verify/cooldown, reservations locking + `409` concurrency + cancel idempotency, webhook HMAC/timestamp/idempotency/success-failed-expired + seat invalidation, tickets validate reuse/wrong organizer. Mocked `AppDataSource`/`redis`/`otpStore`/`sessionStore`/`storageProvider`.
+Mocked unit/service: `hash/token/qr/code/uuid/rate-limit`, cache keys, expiry, auth (register 409/ER_DUP_ENTRY, login 401, verify/refresh), reservations pessimistic lock + `409` concurrency + `EXPIRED` idempotency, webhooks HMAC/timestamp/idempotency + `collection.succeeded/failed`, `checkout.expired`, `refund.created/paid` + seat invalidation, tickets `validate` reuse/wrong organizer/refunded.
+
+E2E (real WSL2 MySQL/Redis via `backend/tests/e2e/helpers.ts` `initE2E`/`clearDatabase` `TRUNCATE` + `flushdb`, mocked `storageProvider`/`bachs`): `auth` (OTP via `redis.get auth:otp:verify:*`), `reservations` (true `SELECT … FOR UPDATE` `409` race), `payments` (checkout → HMAC webhook `200` + idempotency + `tickets` generation), `tickets` (checkout→webhook→ `GET /tickets/me` + `validate` `alreadyUsed` + `403` wrong organizer + `refund.paid` → `401 refunded` + seat `available`).
 
 ---
 
@@ -195,7 +201,7 @@ Covers `hash/token/qr/code/uuid/rate-limit`, cache key helpers, expiry, auth reg
 * Env: `JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, QR_SIGNING_SECRET` required at boot (`validateConfig()`); plus `BACHS_API_KEY/WEBHOOK_SECRET`, `SUPABASE_URL/SERVICE_ROLE_KEY`, `SMTP_*`. Use SSM/Secrets Manager, not committed `.env`.
 * Infra: RDS MySQL 8, ElastiCache Redis 7, Supabase Storage (buckets `event-banners` public, `tickets` private, service role key), EC2 Ubuntu + `pnpm` + `pm2 start backend/dist/server.js --name event-api` + `pm2 startup` + Nginx reverse proxy 80/443 + Certbot.
 * Workers scale: BullMQ `notifications` safe multi-instance; `scheduleEventReminder` on `publish` must be singleton or idempotent to avoid duplicate reminders.
-* Future: handle `refund.created`/`refund.paid` in `webhooks.service.ts`.
+* Refunds: `refund.created` (no-op) + `refund.paid` (`Reservation CONFIRMED→REFUNDED`, `Seat BOOKED→AVAILABLE`, `Payment SUCCESSFUL→REFUNDED`, `Ticket isRefunded`, `invalidateSeatAvailability`, `enqueueRefundIssued`) via `backend/src/migrations/1786548030000-AddRefundSupport.ts`.
 
 ---
 

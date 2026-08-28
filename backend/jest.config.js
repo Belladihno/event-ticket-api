@@ -15,9 +15,9 @@ module.exports = {
     ],
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
-  // uuid v14 ships ESM only — let the transformer compile it to CJS.
-  // Workspace-aware: matches both root and package node_modules/.pnpm/uuid
-  transformIgnorePatterns: ['node_modules/(?!(\\.pnpm/)?uuid)'],
+  // uuid v14 and @faker-js/faker ship ESM only — let the transformer compile them to CJS.
+  // Workspace-aware: matches both root and package node_modules/.pnpm/*
+  transformIgnorePatterns: ['node_modules/(?!(\\.pnpm/)?(uuid|@faker-js))'],
   // Set required secrets BEFORE any module (config) is imported.
   setupFiles: ['<rootDir>/tests/setup.env.ts'],
 };
