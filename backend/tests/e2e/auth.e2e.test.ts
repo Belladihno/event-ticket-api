@@ -17,7 +17,15 @@ jest.mock('../../src/providers/storage/storage.provider', () => ({
 }));
 jest.mock('../../src/providers/bachs.provider', () => ({
   bachs: {
-    checkout: { create: jest.fn().mockResolvedValue({ checkout_url: 'https://checkout.bachs', checkout_id: 'chk_test', expires_at: new Date().toISOString() }) },
+    checkout: {
+      create: jest
+        .fn()
+        .mockResolvedValue({
+          checkout_url: 'https://checkout.bachs',
+          checkout_id: 'chk_test',
+          expires_at: new Date().toISOString(),
+        }),
+    },
     products: { create: jest.fn().mockResolvedValue({ id: 'prod_test' }) },
   },
 }));
@@ -60,12 +68,16 @@ describe('E2E Auth', () => {
     expect(code).toMatch(/^\d{6}$/);
 
     // Verify
-    const verify = await request(app).post('/api/auth/verify-email').send({ email, code });
+    const verify = await request(app)
+      .post('/api/auth/verify-email')
+      .send({ email, code });
     expect(verify.status).toBe(200);
     expect(verify.body.data.message).toMatch(/verified/i);
 
     // Login now succeeds
-    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email, password });
     expect(login.status).toBe(200);
     expect(login.body.data.accessToken).toBeDefined();
     const cookies = login.headers['set-cookie'] as unknown as string[];
@@ -73,22 +85,35 @@ describe('E2E Auth', () => {
     const accessToken = login.body.data.accessToken as string;
 
     // Me
-    const me = await request(app).get('/api/users/me').set('Authorization', `Bearer ${accessToken}`);
+    const me = await request(app)
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${accessToken}`);
     expect(me.status).toBe(200);
     expect(me.body.data.email).toBe(email);
 
     // Refresh (cookie) — must send empty JSON body to satisfy Zod refreshSchema
-    const refreshCookie = cookies?.find((c: string) => c.startsWith('refreshToken='))?.split(';')[0] ?? '';
-    const refresh = await request(app).post('/api/auth/refresh').set('Cookie', refreshCookie).send({});
+    const refreshCookie =
+      cookies
+        ?.find((c: string) => c.startsWith('refreshToken='))
+        ?.split(';')[0] ?? '';
+    const refresh = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', refreshCookie)
+      .send({});
     expect(refresh.status).toBe(200);
     expect(refresh.body.data.accessToken).toBeDefined();
 
     // Logout
-    const logout = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${accessToken}`);
+    const logout = await request(app)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${accessToken}`);
     expect(logout.status).toBe(200);
 
     // Refresh after logout should 401
-    const after = await request(app).post('/api/auth/refresh').set('Cookie', refreshCookie).send({});
+    const after = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', refreshCookie)
+      .send({});
     expect(after.status).toBe(401);
   }, 30000);
 
@@ -100,7 +125,9 @@ describe('E2E Auth', () => {
       email,
       password: 'password123',
     });
-    const login = await request(app).post('/api/auth/login').send({ email, password: 'password123' });
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email, password: 'password123' });
     expect(login.status).toBe(401);
     expect(login.body.message).toMatch(/not verified/i);
   });
@@ -116,7 +143,9 @@ describe('E2E Auth', () => {
 
     // First resend should be rate-limited due to initial register cooldown (60s OTP_RESEND_COOLDOWN)
     // The first resend immediately after register should hit cooldown
-    const resend1 = await request(app).post('/api/auth/resend-verification').send({ email });
+    const resend1 = await request(app)
+      .post('/api/auth/resend-verification')
+      .send({ email });
     // Either 200 (if cooldown not set) or 429 — assert either but not 500
     expect([200, 429]).toContain(resend1.status);
   });

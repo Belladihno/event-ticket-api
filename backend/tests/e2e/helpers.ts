@@ -46,6 +46,8 @@ export async function clearDatabase(): Promise<void> {
       'events',
       'favorites',
       'notifications',
+      'payout_requests',
+      'organizer_accounts',
       'venues',
       'users',
     ];

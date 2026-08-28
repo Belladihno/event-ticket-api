@@ -30,6 +30,9 @@ export const config = {
     webhookSecret: process.env.BACHS_WEBHOOK_SECRET ?? '',
     baseUrl: process.env.BACHS_BASE_URL ?? 'https://sandbox-api.bachs.io',
   },
+  platform: {
+    feePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '5'),
+  },
   supabase: {
     url: process.env.SUPABASE_URL ?? '',
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',

@@ -13,14 +13,29 @@ jest.mock('../../src/providers/storage/storage.provider', () => ({
 }));
 jest.mock('../../src/providers/bachs.provider', () => ({
   bachs: {
-    checkout: { create: jest.fn().mockResolvedValue({ checkout_url: 'https://checkout.bachs', checkout_id: 'chk_test', expires_at: new Date().toISOString() }) },
+    checkout: {
+      create: jest.fn().mockResolvedValue({
+        checkout_url: 'https://checkout.bachs',
+        checkout_id: 'chk_test',
+        expires_at: new Date().toISOString(),
+      }),
+    },
     products: { create: jest.fn().mockResolvedValue({ id: 'prod_test' }) },
   },
 }));
 
 import request from 'supertest';
 import app from '../../src/app';
-import { initE2E, clearDatabase, createTestUser, createTestVenue, createTestEvent, createTestSection, createTestSeats, loginAs } from './helpers';
+import {
+  initE2E,
+  clearDatabase,
+  createTestUser,
+  createTestVenue,
+  createTestEvent,
+  createTestSection,
+  createTestSeats,
+  loginAs,
+} from './helpers';
 
 describe('E2E Reservations — pessimistic locking', () => {
   beforeAll(async () => {
@@ -38,11 +53,22 @@ describe('E2E Reservations — pessimistic locking', () => {
 
   it('concurrent same-seat reservation: only one succeeds (409 for the other)', async () => {
     // Organizer + event published + section + seats
-    const organizer = await createTestUser({ email: `org-${Date.now()}@example.com`, role: 'organizer' });
-    const customer1 = await createTestUser({ email: `c1-${Date.now()}@example.com`, role: 'customer' });
-    const customer2 = await createTestUser({ email: `c2-${Date.now()}@example.com`, role: 'customer' });
+    const organizer = await createTestUser({
+      email: `org-${Date.now()}@example.com`,
+      role: 'organizer',
+    });
+    const customer1 = await createTestUser({
+      email: `c1-${Date.now()}@example.com`,
+      role: 'customer',
+    });
+    const customer2 = await createTestUser({
+      email: `c2-${Date.now()}@example.com`,
+      role: 'customer',
+    });
     const venue = await createTestVenue();
-    const event = await createTestEvent(organizer.id, venue.id, { status: 'published' as any });
+    const event = await createTestEvent(organizer.id, venue.id, {
+      status: 'published' as any,
+    });
     const section = await createTestSection(event.id);
     const seats = await createTestSeats(section.id, 3);
     const seatId = seats[0]!.id;
@@ -52,8 +78,14 @@ describe('E2E Reservations — pessimistic locking', () => {
 
     // Fire two concurrent requests for the same seat
     const [r1, r2] = await Promise.all([
-      request(app).post('/api/reservations').set('Authorization', `Bearer ${token1}`).send({ seatIds: [seatId] }),
-      request(app).post('/api/reservations').set('Authorization', `Bearer ${token2}`).send({ seatIds: [seatId] }),
+      request(app)
+        .post('/api/reservations')
+        .set('Authorization', `Bearer ${token1}`)
+        .send({ seatIds: [seatId] }),
+      request(app)
+        .post('/api/reservations')
+        .set('Authorization', `Bearer ${token2}`)
+        .send({ seatIds: [seatId] }),
     ]);
 
     const statuses = [r1.status, r2.status].sort();
@@ -65,22 +97,37 @@ describe('E2E Reservations — pessimistic locking', () => {
   });
 
   it('rejects reservation for unpublished (draft) event', async () => {
-    const organizer = await createTestUser({ email: `org2-${Date.now()}@example.com`, role: 'organizer' });
-    const customer = await createTestUser({ email: `c-${Date.now()}@example.com` });
+    const organizer = await createTestUser({
+      email: `org2-${Date.now()}@example.com`,
+      role: 'organizer',
+    });
+    const customer = await createTestUser({
+      email: `c-${Date.now()}@example.com`,
+    });
     const venue = await createTestVenue();
-    const draftEvent = await createTestEvent(organizer.id, venue.id, { status: 'draft' as any });
+    const draftEvent = await createTestEvent(organizer.id, venue.id, {
+      status: 'draft' as any,
+    });
     const section = await createTestSection(draftEvent.id);
     const seats = await createTestSeats(section.id, 2);
     const { token } = await loginAs(customer.email);
 
-    const res = await request(app).post('/api/reservations').set('Authorization', `Bearer ${token}`).send({ seatIds: [seats[0]!.id] });
+    const res = await request(app)
+      .post('/api/reservations')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ seatIds: [seats[0]!.id] });
     expect(res.status).toBe(409);
     expect(res.body.message).toMatch(/published/i);
   });
 
   it('myReservations lazily expires overdue holds', async () => {
-    const organizer = await createTestUser({ email: `org3-${Date.now()}@example.com`, role: 'organizer' });
-    const customer = await createTestUser({ email: `c3-${Date.now()}@example.com` });
+    const organizer = await createTestUser({
+      email: `org3-${Date.now()}@example.com`,
+      role: 'organizer',
+    });
+    const customer = await createTestUser({
+      email: `c3-${Date.now()}@example.com`,
+    });
     const venue = await createTestVenue();
     const event = await createTestEvent(organizer.id, venue.id);
     const section = await createTestSection(event.id);
@@ -88,23 +135,33 @@ describe('E2E Reservations — pessimistic locking', () => {
     const { token } = await loginAs(customer.email);
 
     // Reserve
-    const reserve = await request(app).post('/api/reservations').set('Authorization', `Bearer ${token}`).send({ seatIds: [seats[0]!.id] });
+    const reserve = await request(app)
+      .post('/api/reservations')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ seatIds: [seats[0]!.id] });
     expect(reserve.status).toBe(201);
     const reservationId = reserve.body.data[0].id as string;
 
     // Manually expire the reservation by pushing expiresAt to past via DB
     const { AppDataSource } = await import('../../src/config/database.config');
-    await AppDataSource.getRepository('Reservation' as any).update({ id: reservationId }, { expiresAt: new Date(Date.now() - 60_000) } as any);
+    await AppDataSource.getRepository('Reservation' as any).update(
+      { id: reservationId },
+      { expiresAt: new Date(Date.now() - 60_000) } as any,
+    );
 
     // GET /reservations/me triggers expireOverdue
-    const me = await request(app).get('/api/reservations/me').set('Authorization', `Bearer ${token}`);
+    const me = await request(app)
+      .get('/api/reservations/me')
+      .set('Authorization', `Bearer ${token}`);
     expect(me.status).toBe(200);
     const expired = me.body.data.find((r: any) => r.id === reservationId);
     expect(expired.status).toBe('expired');
 
     // Seat should be back to available
     const seatRes = await request(app).get(`/api/sections/${section.id}/seats`);
-    const seat = (seatRes.body.data as any[]).find((s: any) => s.id === seats[0]!.id);
+    const seat = (seatRes.body.data as any[]).find(
+      (s: any) => s.id === seats[0]!.id,
+    );
     expect(seat.status).toBe('available');
   });
 });

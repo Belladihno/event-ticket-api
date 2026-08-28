@@ -19,7 +19,9 @@ const mockCheckoutCreate = jest.fn().mockResolvedValue({
 });
 jest.mock('../../src/providers/bachs.provider', () => ({
   bachs: {
-    checkout: { create: jest.fn((...args: any[]) => mockCheckoutCreate(...args)) },
+    checkout: {
+      create: jest.fn((...args: any[]) => mockCheckoutCreate(...args)),
+    },
     products: { create: jest.fn().mockResolvedValue({ id: 'prod_test' }) },
   },
 }));
@@ -29,16 +31,32 @@ import crypto from 'crypto';
 import app from '../../src/app';
 import { config } from '../../src/config/app.config';
 import { AppDataSource } from '../../src/config/database.config';
-import { initE2E, clearDatabase, createTestUser, createTestVenue, createTestEvent, createTestSection, createTestSeats, loginAs } from './helpers';
+import {
+  initE2E,
+  clearDatabase,
+  createTestUser,
+  createTestVenue,
+  createTestEvent,
+  createTestSection,
+  createTestSeats,
+  loginAs,
+} from './helpers';
 
 function signWebhook(body: Buffer, timestamp: string): string {
-  const secret = (config.bachs as any).webhookSecret || process.env.BACHS_WEBHOOK_SECRET || 'test_webhook_secret';
-  return crypto.createHmac('sha256', secret).update(`${timestamp}.${body.toString('utf8')}`, 'utf8').digest('hex');
+  const secret =
+    (config.bachs as any).webhookSecret ||
+    process.env.BACHS_WEBHOOK_SECRET ||
+    'test_webhook_secret';
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${body.toString('utf8')}`, 'utf8')
+    .digest('hex');
 }
 
 describe('E2E Tickets', () => {
   beforeAll(async () => {
-    process.env.BACHS_WEBHOOK_SECRET = process.env.BACHS_WEBHOOK_SECRET || 'test_webhook_secret';
+    process.env.BACHS_WEBHOOK_SECRET =
+      process.env.BACHS_WEBHOOK_SECRET || 'test_webhook_secret';
     (config.bachs as any).webhookSecret = process.env.BACHS_WEBHOOK_SECRET;
     await initE2E();
   }, 60000);
@@ -54,8 +72,13 @@ describe('E2E Tickets', () => {
   }, 60000);
 
   it('generates tickets on payment success and validates at door', async () => {
-    const organizer = await createTestUser({ email: `org-${Date.now()}@example.com`, role: 'organizer' as any });
-    const customer = await createTestUser({ email: `cust-${Date.now()}@example.com` });
+    const organizer = await createTestUser({
+      email: `org-${Date.now()}@example.com`,
+      role: 'organizer' as any,
+    });
+    const customer = await createTestUser({
+      email: `cust-${Date.now()}@example.com`,
+    });
     const venue = await createTestVenue();
     const event = await createTestEvent(organizer.id, venue.id);
     const section = await createTestSection(event.id);
@@ -107,7 +130,9 @@ describe('E2E Tickets', () => {
     // Poll for tickets
     let tickets: any[] = [];
     for (let i = 0; i < 6; i++) {
-      const res = await request(app).get('/api/tickets/me').set('Authorization', `Bearer ${customerToken}`);
+      const res = await request(app)
+        .get('/api/tickets/me')
+        .set('Authorization', `Bearer ${customerToken}`);
       tickets = res.body.data as any[];
       if (tickets.length === 2) break;
       await new Promise((r) => setTimeout(r, 500));
@@ -116,12 +141,16 @@ describe('E2E Tickets', () => {
     const ticket = tickets[0];
 
     // My ticket events
-    const eventsRes = await request(app).get('/api/tickets/me/events').set('Authorization', `Bearer ${customerToken}`);
+    const eventsRes = await request(app)
+      .get('/api/tickets/me/events')
+      .set('Authorization', `Bearer ${customerToken}`);
     expect(eventsRes.status).toBe(200);
     expect(eventsRes.body.data[0].ticketCount).toBe(2);
 
     // Get ticket with signed URL
-    const getRes = await request(app).get(`/api/tickets/${ticket.id}`).set('Authorization', `Bearer ${customerToken}`);
+    const getRes = await request(app)
+      .get(`/api/tickets/${ticket.id}`)
+      .set('Authorization', `Bearer ${customerToken}`);
     expect(getRes.status).toBe(200);
     expect(getRes.body.data.ticketUrl).toMatch(/https/);
     const qrPayload = getRes.body.data.qrPayload as string;
@@ -143,7 +172,10 @@ describe('E2E Tickets', () => {
     expect(validate2.body.data.alreadyUsed).toBe(true);
 
     // Wrong organizer should 403
-    const otherOrg = await createTestUser({ email: `other-${Date.now()}@example.com`, role: 'organizer' as any });
+    const otherOrg = await createTestUser({
+      email: `other-${Date.now()}@example.com`,
+      role: 'organizer' as any,
+    });
     const { token: otherToken } = await loginAs(otherOrg.email);
     const wrong = await request(app)
       .post('/api/tickets/validate')
@@ -153,8 +185,13 @@ describe('E2E Tickets', () => {
   });
 
   it('refunded ticket is rejected at validation', async () => {
-    const organizer = await createTestUser({ email: `org-ref-${Date.now()}@example.com`, role: 'organizer' as any });
-    const customer = await createTestUser({ email: `cust-ref-${Date.now()}@example.com` });
+    const organizer = await createTestUser({
+      email: `org-ref-${Date.now()}@example.com`,
+      role: 'organizer' as any,
+    });
+    const customer = await createTestUser({
+      email: `cust-ref-${Date.now()}@example.com`,
+    });
     const venue = await createTestVenue();
     const event = await createTestEvent(organizer.id, venue.id);
     const section = await createTestSection(event.id);
@@ -200,7 +237,9 @@ describe('E2E Tickets', () => {
     await new Promise((r) => setTimeout(r, 1500));
 
     // Get ticket
-    const ticketsRes = await request(app).get('/api/tickets/me').set('Authorization', `Bearer ${customerToken}`);
+    const ticketsRes = await request(app)
+      .get('/api/tickets/me')
+      .set('Authorization', `Bearer ${customerToken}`);
     const ticket = ticketsRes.body.data[0] as any;
     const qrPayload = ticket.qrPayload as string;
 
@@ -245,8 +284,12 @@ describe('E2E Tickets', () => {
     expect(validate.body.message).toMatch(/refunded/i);
 
     // Seat should be available again
-    const seatsRes = await request(app).get(`/api/sections/${section.id}/seats`);
-    const seat = (seatsRes.body.data as any[]).find((s: any) => s.id === seats[0]!.id);
+    const seatsRes = await request(app).get(
+      `/api/sections/${section.id}/seats`,
+    );
+    const seat = (seatsRes.body.data as any[]).find(
+      (s: any) => s.id === seats[0]!.id,
+    );
     expect(seat.status).toBe('available');
   });
 });
